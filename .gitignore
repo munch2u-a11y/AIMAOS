@@ -1,0 +1,14 @@
+# Virtual environments & bytecode
+__pycache__/
+*.pyc
+.venv/
+venv/
+env/
+
+# Communication bus runtime queues
+comms/*/inbox/*.read
+comms/*/outbox/*.json
+
+# Output logs
+*.log
+.DS_Store
