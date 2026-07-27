@@ -2,25 +2,16 @@ import os
 import sys
 import yaml
 import shutil
-import subprocess
 from rich.console import Console
 from rich.panel import Panel
 from rich.table import Table
 
 console = Console()
 
-DEFAULT_MODEL_ASSIGNMENTS = {
-    "Alix-AI": "gemma2:9b",
-    "Kai-AI": "llama3.1:8b",
-    "Marley-AI": "qwen2.5:7b",
-    "Quinn-AI": "mistral:7b",
-    "Zoe-AI": "llama3.1:8b",
-    "Finn-AI": "llama3:latest",
-    "Rae-AI": "llama3.1:8b"
-}
+AGENTS = ["Alix-AI", "Kai-AI", "Marley-AI", "Quinn-AI", "Zoe-AI", "Finn-AI", "Rae-AI"]
 
 def run_diagnostics():
-    console.print("\n[bold cyan]1. Running AIMAOS Environment & Dependency Diagnostics...[/bold cyan]")
+    console.print("\n[bold cyan]1. Running AIMAOS Model-Agnostic Environment & Dependency Diagnostics...[/bold cyan]")
     
     deps = {
         "Python Version": sys.version.split()[0],
@@ -50,15 +41,15 @@ def import_check(mod_name):
         return False
 
 def configure_workspaces():
-    console.print("\n[bold cyan]2. Configuring AIMAOS Agent Workspaces & Multi-Model Assignment Matrix...[/bold cyan]")
+    console.print("\n[bold cyan]2. Configuring AIMAOS Mini-Agent Workspaces & Model-Agnostic Engine...[/bold cyan]")
     base_dir = "/path/to/AIMAOS"
     
-    table = Table(title="AIMAOS Mini-Agent Multi-Model Matrix")
+    table = Table(title="AIMAOS Mini-Agent Roster Matrix")
     table.add_column("Agent Workspace", style="white")
-    table.add_column("Assigned LLM Model", style="yellow")
+    table.add_column("Model Architecture", style="yellow")
     table.add_column("Status", style="green")
 
-    for agent, model in DEFAULT_MODEL_ASSIGNMENTS.items():
+    for agent in AGENTS:
         apath = os.path.join(base_dir, agent)
         os.makedirs(os.path.join(apath, "workspace", ".memory"), exist_ok=True)
         
@@ -74,11 +65,11 @@ def configure_workspaces():
         if "agent" not in cfg_data:
             cfg_data["agent"] = {"name": agent.replace("-AI", "")}
         
-        cfg_data["agent"]["model"] = model
+        cfg_data["agent"]["model"] = "local-model-agnostic"
         with open(cfg_path, "w") as f:
             yaml.dump(cfg_data, f, sort_keys=False)
 
-        table.add_row(agent, model, "[bold green]CONFIGURED[/bold green]")
+        table.add_row(agent, "Model-Agnostic (Configurable)", "[bold green]CONFIGURED[/bold green]")
 
     console.print(table)
 
@@ -87,10 +78,10 @@ def configure_workspaces():
     console.print(f"  - Configured IPC Comms Bus: [bold yellow]{comms_dir}[/bold yellow]")
 
 def main():
-    console.print(Panel("[bold cyan]AIMAOS SETUP WIZARD[/bold cyan]\nHelix-Style Multi-Model & Minimal mRAG Configurator", border_style="cyan"))
+    console.print(Panel("[bold cyan]AIMAOS SETUP WIZARD[/bold cyan]\nModel-Agnostic Multi-Agent Operating System Configurator", border_style="cyan"))
     run_diagnostics()
     configure_workspaces()
-    console.print("\n[bold green]SUCCESS: AIMAOS Multi-Model Setup Completed![/bold green]")
+    console.print("\n[bold green]SUCCESS: AIMAOS Model-Agnostic Setup Completed![/bold green]")
     console.print("Run [bold yellow]python3 /path/to/AIMAOS/aimaos_ui.py[/bold yellow] to launch the All-in-One Dashboard!")
 
 if __name__ == "__main__":

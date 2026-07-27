@@ -15,11 +15,11 @@ def load_module(mod_name, file_path):
 
 def run_test():
     print("====================================================================")
-    print("AIMAOS HELIX-STYLE MINIMAL SYSTEM PROMPTS & mRAG TEST SUITE")
+    print("AIMAOS MODEL-AGNOSTIC SYSTEM PROMPTS & mRAG TEST SUITE")
     print("====================================================================\n")
 
-    # 1. Test Setup Wizard Multi-Model Matrix
-    print("--- 1. TESTING SETUP WIZARD MULTI-MODEL MATRIX ---")
+    # 1. Test Setup Wizard Model-Agnostic Matrix
+    print("--- 1. TESTING SETUP WIZARD MODEL-AGNOSTIC MATRIX ---")
     setup_mod = load_module("setup_mod", "/path/to/AIMAOS/setup.py")
     setup_mod.run_diagnostics()
     setup_mod.configure_workspaces()
@@ -28,16 +28,16 @@ def run_test():
     print("\n--- 2. TESTING mRAG MINIMAL SYSTEM PROMPT INJECTION ---")
     store = AgentBeliefStore()
     agents_to_test = [
-        ("Alix", "Document Production & Keeper Agent", "gemma2:9b"),
-        ("Marley", "Scheduler & Office Manager", "qwen2.5:7b"),
-        ("Finn", "Security Officer & Comms Gateway", "llama3:latest"),
-        ("Quinn", "Research & Legal Intelligence Reporter", "mistral:7b"),
-        ("Zoe", "DevOps Maintenance Engineer & Synthesizer", "llama3.1:8b")
+        ("Alix", "Document Production & Keeper Agent"),
+        ("Marley", "Scheduler & Office Manager"),
+        ("Finn", "Security Officer & Comms Gateway"),
+        ("Quinn", "Research & Legal Intelligence Reporter"),
+        ("Zoe", "DevOps Maintenance Engineer & Synthesizer")
     ]
 
-    for name, role, model in agents_to_test:
+    for name, role in agents_to_test:
         prompt = store.get_minimal_system_prompt(name, role)
-        print(f"\n[{name} Agent ({model}) System Prompt]:\n{prompt}")
+        print(f"\n[{name} Agent System Prompt]:\n{prompt}")
         assert "Identity:" in prompt
         assert "Core Belief:" in prompt
 
@@ -54,7 +54,7 @@ def run_test():
     print("\n[Marley Single-Turn Dispatch Result]:\n", marley_res)
 
     print("\n====================================================================")
-    print("SUCCESS: HELIX-STYLE MINIMAL PROMPTS & SINGLE-THOUGHT TURNS VERIFIED!")
+    print("SUCCESS: MODEL-AGNOSTIC MINIMAL PROMPTS & SINGLE-THOUGHT TURNS VERIFIED!")
     print("====================================================================\n")
 
 if __name__ == "__main__":
