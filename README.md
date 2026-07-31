@@ -1,21 +1,21 @@
 # AIMAOS — AI Multi-Agent Office Suite Operating System
 
 > **Autonomous, 100% Offline, Model-Agnostic Multi-Agent Enterprise Office Suite & Document Production Engine**  
-> *Designed to automate document production, client folder organization, legal research, and task coordination for small offices operating on budget local hardware.*
+> *Designed to automate document production, client folder organization, in-depth research, and task coordination for small offices operating on budget local hardware.*
 
 ---
 
 ## 💡 Why AIMAOS is Built for Small Offices on a Budget
 
-Small firms and solo offices often struggle with administrative overhead: organizing hundreds of unclassified client files, tracking court deadlines, preparing forms, and keeping case summaries up to date. Cloud AI services can get expensive with monthly API subscriptions, while single-agent local setups often stall when forced to manage multi-stage administrative workflows.
+Small firms and solo offices often struggle with administrative overhead: organizing hundreds of unclassified client files, tracking project deadlines, preparing forms and reports, and keeping case summaries up to date. Cloud AI services can get expensive with monthly API subscriptions, while single-agent local setups often stall when forced to manage multi-stage administrative workflows.
 
 **AIMAOS** provides a practical, 100% offline desktop operating suite that runs entirely on your local hardware:
 
 1. **Zero API Costs & Total Privacy**: Runs locally using open-weights models via Ollama (or any local LLM runner). No subscription fees, no cloud telemetry, and no client data leaving your local machine.
-2. **Dedicated Per-Folder Case Managers**: Every client directory receives a dedicated manager (`CaseAgent`) that continuously maintains a human-readable case summary (`CLIENT_FILE.md`), active timelines, court deadlines, and required-document checklists.
+2. **Dedicated Per-Folder Case Managers**: Every client directory receives a dedicated manager (`CaseAgent`) that continuously maintains a human-readable case summary (`CLIENT_FILE.md`), active timelines, project deadlines, and required-document checklists.
 3. **Independent Agent Growth & Skill Formation**: Agents dynamically learn from experience and user preferences, evolving new skills over time through background reflections without bloated static prompts.
 4. **Dual Memory Storage Architecture**: Combines transactional **Relational SQL** core safety for exact case/task tracking with semantic **Vector Store Memory** (ChromaDB / Pinecone / Dummy) for context retrieval.
-5. **Automated Inter-Agent Task Delegation**: When an agent identifies a required action during document review—such as needing statutory research, template rendering, or drive file ingestion—it posts a structured task to the central office board, automatically routing the work to the right specialist agent.
+5. **Automated Inter-Agent Task Delegation**: When an agent identifies a required action during document review—such as needing in-depth research, template rendering, or drive file ingestion—it posts a structured task to the central office board, automatically routing the work to the right specialist agent.
 6. **Hardware-Enforced Outbound Email Safety**: Operates in strict `READ_ONLY` mode by default (or `WHITELIST_ONLY`), ensuring agents can never accidentally email clients or external parties.
 7. **Voice Scribe Dictation**: Dictate quick audio notes directly into the web interface; the system transcribes the recording and attaches the takeaways straight to the client's case file.
 
@@ -83,7 +83,7 @@ AIMAOS implements a dual-layer storage hub that balances transactional safety wi
 ├─────────────────────────────────────────────────────────────────────────┤
 │                                                                         │
 │  1. STRUCTURED RELATIONAL CORE (SQLite — comms/office_database.sqlite)   │
-│     • Manages cases, active task queues, and legal template catalogs    │
+│     • Manages cases, active task queues, and document template catalogs │
 │     • Guarantees atomic row locking, zero data corruption, & fast SQL   │
 │     • Synchronizes state to CLIENT_FILE.md for staff inspection         │
 │                                                                         │
@@ -111,13 +111,13 @@ graph TD
     Board <--> Manager["Office Manager & Priority Scheduler"]
     
     Manager -->|High Priority Turn| DocProducer["Document Producer (Template Cataloger & PDF Renderer)"]
-    Manager -->|High Priority Turn| Researcher["Legal Researcher (Statutory Analysis & Briefing)"]
+    Manager -->|High Priority Turn| Researcher["Research Specialist (Domain Analysis & Briefing)"]
     Manager -->|Normal Priority Turn| Librarian["Digital Librarian (Drive Ingestion Scanner & Archiver)"]
     
     Librarian -->|Spawn & Assign| CaseManager["CaseManager (Per-Client Folder Reviewer)"]
     
     CaseManager -->|Discovers Missing Form| Board
-    CaseManager -->|Discovers Statutory Query| Board
+    CaseManager -->|Discovers Research Query| Board
     CaseManager <--> CatSkills["Category Skill Repository (comms/category_skills/)"]
     
     DocProducer -->|Request Dispatch| SecGateway
@@ -135,11 +135,11 @@ Agent names in AIMAOS are customizable starter presets assigned during setup. Th
 | **Document Producer & Keeper** | `Alix` (Default) | Ingests intake forms, Jinja2 Word rendering, TOC OpenXML injection, PDF compilation, template library cataloging. |
 | **Digital Librarian & Archiver** | `Kai` (Default) | External drive scanning, client deduplication, SQLite case registration, task execution trace archival. |
 | **Office Manager & Scheduler** | `Marley` (Default) | Autonomous office daemon pulse loop, priority turn scheduling (`CRITICAL`, `HIGH`, `NORMAL`, `BACKGROUND`), task lease hygiene, load balancing. |
-| **Legal & Statutory Researcher** | `Quinn` (Default) | Statutory research, Florida Rules of Civil & Family Procedure, jurisdictional filing rules, formal legal memorandum writing. |
+| **Domain & Subject Researcher** | `Quinn` (Default) | In-depth subject research, policy & regulatory analysis, jurisdictional rule verification, formal briefing report writing. |
 | **DevOps Engineer & Synthesizer** | `Zoe` (Default) | Task trace analysis, Hermes operational improvement reports, performance bottleneck detection, tool catalog installation. |
 | **Security Officer & Comms Gateway** | `Finn` (Default) | Security triage, sender permission checks, hardware-enforced email policies (`READ_ONLY`, `WHITELIST_ONLY`), Voice Scribe audio dictation gateway. |
 | **Agent Maker & Cloner** | `Rae` (Default) | Dynamic workspace cloner. Instantiates new mini-agent workspaces fully integrated into main config, IPC bus, and Office Board. |
-| **Dedicated Case Manager** | `CaseAgent` (Dynamic) | Per-client mini-agent. Generates `CLIENT_FILE.md` summaries, required-document checklists, court deadlines, and inherits category practice skills. |
+| **Dedicated Case Manager** | `CaseAgent` (Dynamic) | Per-client mini-agent. Generates `CLIENT_FILE.md` summaries, required-document checklists, project deadlines, and inherits practice area skills. |
 
 ---
 
