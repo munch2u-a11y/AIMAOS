@@ -1,0 +1,29 @@
+template_id: "consulting_exec_summary_v1"
+title: "Executive Workflow Audit Report"
+category: "consulting"
+description: "Standard Jinja2 executive deliverable report for management consulting engagements."
+template_file: "client_report_template.jinja2"
+required_fields:
+  - client_name
+  - project_id
+  - project_title
+  - consulting_firm
+  - report_date
+  - baseline_cycle_time
+  - industry_benchmark
+  - target_reduction_percent
+  - recommendations
+  - presentation_date
+  - lead_consultant
+default_context:
+  client_name: "Acme Logistics Solutions"
+  project_id: "2026-CONSULT-042"
+  project_title: "Supply Chain & Workflow Audit"
+  consulting_firm: "Apex Strategy Group"
+  report_date: "July 31, 2026"
+  baseline_cycle_time: "5.8 hours"
+  industry_benchmark: "3.4 hours"
+  target_reduction_percent: "40"
+  recommendations: "1. Deploy automated intake barcode verification.\n2. Reallocate high-velocity SKUs to forward fulfillment zones.\n3. Adopt automated cycle-counting."
+  presentation_date: "August 15, 2026"
+  lead_consultant: "Morgan Ellis"
