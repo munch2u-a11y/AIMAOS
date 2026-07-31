@@ -1,0 +1,53 @@
+[
+  {
+    "belief_id": "bel_skill_001",
+    "category": "skills",
+    "content": "Always verify file existence on local disk using os.path.exists before attempting to read or parse file contents.",
+    "confidence": 0.95,
+    "stability_index": 0.88,
+    "verifications": 4.0,
+    "access_count": 18,
+    "relations": ["bel_concept_file_ops"],
+    "memory_refs": ["mem_turn_20260728_142000_alix"],
+    "tags": ["file_operations", "verification"],
+    "conceptual_tags": ["error_prevention", "disk_io"],
+    "relevance": 0.925,
+    "weight": 0.95,
+    "created_at": "2026-07-28T14:20:00",
+    "updated_at": "2026-07-31T10:15:00"
+  },
+  {
+    "belief_id": "bel_skill_002",
+    "category": "skills",
+    "content": "When rendering court or formal administrative documents, format the header with explicit Judicial Circuit number, County name, and Case Number.",
+    "confidence": 0.90,
+    "stability_index": 0.80,
+    "verifications": 3.0,
+    "access_count": 14,
+    "relations": ["bel_concept_court_formatting"],
+    "memory_refs": ["mem_turn_20260729_091500_alix"],
+    "tags": ["formatting", "headers"],
+    "conceptual_tags": ["legal_formatting", "document_structure"],
+    "relevance": 0.880,
+    "weight": 0.90,
+    "created_at": "2026-07-29T09:15:00",
+    "updated_at": "2026-07-31T11:30:00"
+  },
+  {
+    "belief_id": "bel_skill_003",
+    "category": "skills",
+    "content": "When reviewing incoming intake documents, extract all explicitly mentioned hearing or response deadlines and append them to CLIENT_FILE.md.",
+    "confidence": 0.88,
+    "stability_index": 0.75,
+    "verifications": 2.0,
+    "access_count": 9,
+    "relations": ["bel_concept_case_tracking"],
+    "memory_refs": ["mem_turn_20260730_164500_caseagent"],
+    "tags": ["deadlines", "checklists"],
+    "conceptual_tags": ["case_management", "calendar"],
+    "relevance": 0.850,
+    "weight": 0.88,
+    "created_at": "2026-07-30T16:45:00",
+    "updated_at": "2026-07-31T11:45:00"
+  }
+]

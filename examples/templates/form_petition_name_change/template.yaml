@@ -2,13 +2,24 @@ template_id: "form_12_982_a"
 title: "Petition for Change of Name (Adult)"
 category: "name_change"
 description: "Standard Jinja2 template for adult name change petitions."
+template_file: "template.jinja2"
 required_fields:
   - client_name
+  - street_address
+  - city
   - county
+  - zip_code
+  - new_name
   - circuit_number
   - case_number
-  - new_name
+  - filing_date
 default_context:
-  circuit_number: "2nd"
+  client_name: "Alex Montgomery"
+  street_address: "123 Main Street"
+  city: "Tallahassee"
   county: "Leon"
+  zip_code: "32301"
+  new_name: "Alex Newname"
+  circuit_number: "2nd"
   case_number: "2026-DR-0000"
+  filing_date: "July 31, 2026"

@@ -14,8 +14,10 @@ This directory contains anonymized, synthetic examples demonstrating how **AIMAO
    - [`sample_client_alex_montgomery/.client_file_state.json`](case_summaries/sample_client_alex_montgomery/.client_file_state.json): The corresponding structured JSON state file.
 
 2. **`examples/learned_skills/`**:
-   - [`skills.json`](learned_skills/skills.json): Example of dynamic skill beliefs synthesized during background Helix mRAG reflection cycles based on agent execution patterns and user preferences.
+   - [`raw_belief_store_skills.json`](learned_skills/raw_belief_store_skills.json): Authentic, privacy-scrubbed raw belief store artifact preserving the exact runtime schema of `BeliefStore` (`belief_id`, `category`, `content`, `confidence`, `stability_index`, `verifications`, `access_count`, `relations`, `memory_refs`, `tags`, `conceptual_tags`, `relevance`, `weight`, `created_at`, `updated_at`).
+   - [`exported_skills.json`](learned_skills/exported_skills.json): A high-level, human-readable skill export format transformed for product-facing displays.
 
 3. **`examples/templates/`**:
-   - [`form_petition_name_change/template.yaml`](templates/form_petition_name_change/template.yaml): Anonymized Jinja2 document template configuration and field schema.
-   - [`form_petition_name_change/sample_filled_output.txt`](templates/form_petition_name_change/sample_filled_output.txt): Rendered output text showing populated context fields.
+   - [`form_petition_name_change/template.jinja2`](templates/form_petition_name_change/template.jinja2): The source Jinja2 template text.
+   - [`form_petition_name_change/template.yaml`](templates/form_petition_name_change/template.yaml): Complete template metadata and default context schema mapping all 9 context variables (`client_name`, `street_address`, `city`, `county`, `zip_code`, `new_name`, `circuit_number`, `case_number`, `filing_date`).
+   - [`form_petition_name_change/sample_filled_output.txt`](templates/form_petition_name_change/sample_filled_output.txt): 100% reproducible rendered text produced by evaluating `template.jinja2` with `template.yaml`'s default context.
