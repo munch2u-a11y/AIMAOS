@@ -12,3 +12,4 @@
 - Added atomic private runtime writes, bounded history retention, setup validation, transitive dependency locks, and a competitive product-beta roadmap.
 - Added a unified Agenda with prioritized blockers, case-advancement steps, deadlines, staff follow-ups, and complete/snooze controls.
 - Added Marley's deterministic daily advancement review with recursive task dependencies, stale-work promotion, false-completion review, and idempotent local reminders.
+- Added protected, fillable Word intake questionnaires with deterministic content-control extraction, approved-path enforcement, and explicit review of client-provided answers.

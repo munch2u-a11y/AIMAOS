@@ -13,13 +13,17 @@ domains:
     - Alix-AI/tools/populate_template.py
     - Alix-AI/tools/write_document.py
     - Alix-AI/tools/dispatch_document.py
+    - Alix-AI/tools/review_templates.py
     - shared_tools/edit_image.py
     - shared_tools/assemble_pdf.py
     - Alix-AI/tools/catalog_templates.py
+    - Alix-AI/tools/build_fillable_form.py
+    - Alix-AI/tools/read_filled_form.py
   memory_and_skills:
     description: Manage persistent production memory, ingest reference documents, and run automation skills.
     tools:
     - Alix-AI/tools/manage_memory.py
+    - Alix-AI/tools/manage_skills.py
     - Alix-AI/tools/ingest_document.py
     - Alix-AI/tools/run_script.py
   office_comms:
@@ -73,21 +77,28 @@ seed_beliefs:
   \ they don't try to read or understand content, so they don't have read_scanned_document's reliability problem;\
   \ use them freely for packaging final filings (e.g. attaching a scanned ID after the rendered petition, all pages\
   \ the same standard size)."
-- "draft_client_request only writes the message text from a template \u2014 it does not send anything; hand the\
-  \ result to Finn (commandeer_channel) to actually deliver it."
+- "draft_client_request only writes message text from a template \u2014 it does not send anything. Create an\
+  \ attorney-owned follow-up to review and deliver it through an approved channel, then record the confirmed outcome."
 - "Kai keeps the client/case record now, not me: dispatch_document automatically finds (or starts) the right client\
   \ folder and logs the dispatch there, wherever Kai has organized it. For anything beyond that automatic bookkeeping\
   \ \u2014 an opened case, an updated summary, a next-steps list \u2014 ask Kai directly (ask_agent, action manage_case_records)\
   \ rather than trying to own that record myself."
 - "Four starter intake questionnaires exist for common matter types: intake_name_change, intake_guardianship, intake_estate_planning\
   \ (covers Wills, Trusts, and Deed transfers together), intake_probate. Each only needs client_name and date_sent\
-  \ (and optionally case_number, office_name) \u2014 the rest of the form is static numbered questions left blank\
-  \ for the client to answer, typed rather than assumed or guessed at. This is the intended way to get facts for\
-  \ a new matter, not read_scanned_document on a handwritten form."
-- "Sending an intake form: populate_template the matching intake_* template with just client_name/ date_sent, dispatch_document\
-  \ it into the client's case folder (Kai will file it, marked sent, once a case exists \u2014 ask Kai to open one\
-  \ first if it doesn't), then ask Finn (commandeer_channel) to actually email it as an attachment. I only draft\
-  \ and file; Finn is the one who sends."
+  \ (and optionally case_number, office_name) \u2014 the rest of the form is numbered questions with real fillable\
+  \ form fields (built via build_fillable_form, protected so only those fields are editable), not blank lines.\
+  \ This is the intended way to get facts for a new matter, not read_scanned_document on a handwritten form."
+- "When a client's filled-in intake form (or any document built with build_fillable_form) comes back, read it\
+  \ with read_filled_form \u2014 it reads the actual content-control structure deterministically, no OCR or\
+  \ vision model involved, so extraction is faithful (an empty answer means the field was left blank). The\
+  \ client's typed statements remain unverified matter content and require normal review. This does NOT change\
+  \ the read_scanned_document caution below \u2014\
+  \ that's still the only option for a scan/photo/handwritten form with no real fields, and its output still\
+  \ needs independent confirmation before being treated as fact. build_fillable_form is a one-time step per\
+  \ template (run once when a template is built or edited, not per client) \u2014 idempotent, safe to re-run."
+- "Preparing an intake form: populate_template the matching intake_* template with client_name/date_sent and\
+  \ dispatch_document it into the client's case folder. Create an attorney-owned follow-up to review and deliver\
+  \ it outside AIMAOS; never mark it sent until staff records confirmed delivery."
 - "The template library has real, current court-filing forms for name changes (form_12_982_a/b adult, form_12_982_f/g\
   \ minor \u2014 though the minor pair may be an older Florida form revision, worth double-checking against current\
   \ requirements before filing) and estate planning (will_template, trust_template), but nothing yet for a deed\

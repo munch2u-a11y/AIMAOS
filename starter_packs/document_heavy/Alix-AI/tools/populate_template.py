@@ -8,11 +8,12 @@ def _find_aimaos_root():
 AIMAOS_ROOT = os.environ.get("AIMAOS_ROOT") or _find_aimaos_root()
 import sys
 import yaml
+import difflib
 from datetime import datetime
 
 sys.path.insert(0, os.path.join(AIMAOS_ROOT, "Alix-AI"))
 from business.document_engine import DocumentEngine
-from core.security import normalize_slug, resolve_within, sanitize_output_basename
+from core.security import normalize_slug, require_allowed_path, resolve_within, sanitize_output_basename
 
 TOOL_DEFINITION = {
     "name": "populate_template",
@@ -61,8 +62,19 @@ def get_config():
 def execute(template_name, context, output_name=None, output_format=None, include_toc=False):
     config = get_config()
     paths = config.get("paths", {})
-    templates_dir = os.path.abspath(paths.get("templates", "./templates"))
-    output_dir = os.path.abspath(paths.get("output", "./workspace/output"))
+    project_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
+    def configured_path(value):
+        return value if os.path.isabs(value) else os.path.join(project_dir, value)
+
+    try:
+        templates_dir = require_allowed_path(configured_path(paths.get("templates", "templates")))
+        output_dir = require_allowed_path(
+            configured_path(paths.get("output", "workspace/output")), must_exist=False
+        )
+    except (ValueError, FileNotFoundError) as exc:
+        return f"Error: {exc}"
+    os.makedirs(output_dir, exist_ok=True)
 
     # Normalize: models often pass "form_x.docx" when the template folder is
     # "form_x" — strip the extension for folder-based lookups.
@@ -74,8 +86,8 @@ def execute(template_name, context, output_name=None, output_format=None, includ
 
     # Resolve template docx path
     candidates = [
-        os.path.join(templates_dir, base_name, "template.docx"),
-        os.path.join(templates_dir, f"{base_name}.docx"),
+        resolve_within(templates_dir, base_name, "template.docx"),
+        resolve_within(templates_dir, f"{base_name}.docx"),
     ]
 
     docx_template_path = None
@@ -85,7 +97,19 @@ def execute(template_name, context, output_name=None, output_format=None, includ
             break
 
     if not docx_template_path:
-        return f"Error: Template '{template_name}' not found. Searched paths:\n" + "\n".join(f"- {c}" for c in candidates)
+        # A small local model guessing a template name is a real, common
+        # failure mode -- suggest the closest real folder name instead of
+        # just dumping searched paths for it to guess again from nothing.
+        try:
+            available = sorted(d for d in os.listdir(templates_dir)
+                               if os.path.isdir(os.path.join(templates_dir, d)))
+        except OSError:
+            available = []
+        suggestions = difflib.get_close_matches(base_name, available, n=3, cutoff=0.5)
+        msg = f"Error: Template '{template_name}' not found. Searched paths:\n" + "\n".join(f"- {c}" for c in candidates)
+        if suggestions:
+            msg += f"\nDid you mean: {', '.join(suggestions)}?"
+        return msg
 
     # template.yaml (if present alongside template.docx) declares the fields
     # this template actually expects -- use them as required_fields so a
@@ -113,9 +137,12 @@ def execute(template_name, context, output_name=None, output_format=None, includ
 
     if not output_format:
         output_format = config.get("default_output_format", "docx")
+    output_format = str(output_format).lower()
+    if output_format not in {"docx", "pdf"}:
+        return "Error: output_format must be 'docx' or 'pdf'."
 
     output_docx_path = resolve_within(output_dir, f"{output_name}.docx")
-    convert_pdf = (output_format.lower() == "pdf")
+    convert_pdf = output_format == "pdf"
 
     try:
         engine = DocumentEngine(docx_template_path)
@@ -135,10 +162,11 @@ def execute(template_name, context, output_name=None, output_format=None, includ
             lines = [f"ISSUES FOUND — do not treat this document as finished.\n- Word Document: {docx_out}"]
             if issues.get("structural_error"):
                 lines.append(f"- Structural error re-opening the saved file: {issues['structural_error']}")
-            if issues.get("unrendered_tags"):
-                lines.append(f"- Unrendered template tag(s) still in the document text: "
-                            f"{', '.join(issues['unrendered_tags'][:10])} "
-                            f"— check for a field name typo or a tag Word split across formatting runs.")
+            if issues.get("leak_tokens"):
+                lines.append(f"- Leftover template tag(s) or placeholder boilerplate still in the "
+                            f"document text: {', '.join(issues['leak_tokens'][:10])} "
+                            f"— check for a field name typo, a tag Word split across formatting runs, "
+                            f"or draft filler text left in the template itself.")
             if issues.get("missing_fields"):
                 lines.append(f"- Field(s) with no value given, filled with a visible placeholder instead: "
                             f"{', '.join(issues['missing_fields'])} — this document is not ready to file/send "

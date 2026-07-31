@@ -212,7 +212,10 @@ def tool_execution_policy(tool_name: str, arguments: Mapping | None = None,
     if tool_name in disabled:
         return False, f"Tool '{tool_name}' is disabled by the office security policy."
 
-    developer_tools = {"clone_agent", "design_tool_subagent", "install_catalog_tool", "run_script"}
+    developer_tools = {
+        "build_fillable_form", "clone_agent", "design_tool_subagent",
+        "install_catalog_tool", "run_script",
+    }
     if tool_name in developer_tools and not developer_mode_enabled(cfg):
         return False, f"Tool '{tool_name}' is available only in developer mode."
 

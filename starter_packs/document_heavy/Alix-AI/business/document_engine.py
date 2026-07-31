@@ -10,14 +10,30 @@ from docx.oxml import OxmlElement
 
 logger = logging.getLogger(__name__)
 
-# A literal {{ ... }} surviving in rendered output is a real, well-known
-# docxtpl failure signature -- Jinja tags Word has split across separate XML
-# runs (e.g. from autocorrect/formatting) go unrecognized by docxtpl and pass
-# through untouched, so the field silently never gets filled even though
-# render() reported no error. Anything matching this after render means the
-# document is broken, not just "rendered" -- flag it rather than reporting
-# a plain success.
-_UNRENDERED_TAG_RE = re.compile(r"\{\{.*?\}\}")
+# Text patterns that mean a "successfully rendered" document is still not
+# actually finished -- a real, well-known failure class, not a hypothetical:
+# - {{ tag }}: a Jinja tag Word split across separate XML runs (e.g. from
+#   autocorrect/formatting) that docxtpl never recognized, so the field
+#   silently never filled even though render() reported no error.
+# - <TODO>/TBD/TODO: a placeholder note left by whoever authored/edited the
+#   template, never meant to reach a client or court.
+# - lorem ipsum / xxxx: boilerplate or filler text accidentally left in from
+#   drafting the template itself.
+# Anything matching after render means the document is broken, not just
+# "rendered" -- flag it rather than reporting a plain success.
+_LEAK_PATTERNS = [
+    re.compile(r"\{\{.*?\}\}"),
+    re.compile(r"<TODO>", re.IGNORECASE),
+    re.compile(r"\bTBD\b"),
+    re.compile(r"\blorem ipsum\b", re.IGNORECASE),
+    re.compile(r"x{4,}", re.IGNORECASE),
+]
+
+# A numbered intake question ("12. Some question:") followed by one or more
+# bare-underscore answer lines is the exact anti-pattern make_fillable()
+# converts into real content controls -- see its docstring.
+_QUESTION_NUMBER_RE = re.compile(r"^\s*(\d+)\.\s*(.*)$")
+_UNDERSCORE_LINE_RE = re.compile(r"^_{10,}$")
 
 class DocumentEngine:
     """
@@ -55,6 +71,116 @@ class DocumentEngine:
             element.set(qn('w:val'), 'true')
             doc.settings.element.insert(0, element)
 
+    def _build_sdt_field(self, tag, alias, field_id):
+        """A single empty, plain-text OOXML content control (w:sdt).
+        sdtContent is deliberately EMPTY, not a literal placeholder string --
+        w:showingPlcHdr gives Word's grey hint-text display without that text
+        actually being stored content, so "unanswered" is unambiguously an
+        empty string on read-back (read_filled_form.py) rather than a magic
+        sentinel a client could accidentally leave behind by tabbing past
+        the field."""
+        sdt = OxmlElement('w:sdt')
+        sdtPr = OxmlElement('w:sdtPr')
+
+        alias_el = OxmlElement('w:alias')
+        alias_el.set(qn('w:val'), alias[:250])
+        sdtPr.append(alias_el)
+
+        tag_el = OxmlElement('w:tag')
+        tag_el.set(qn('w:val'), tag)
+        sdtPr.append(tag_el)
+
+        id_el = OxmlElement('w:id')
+        id_el.set(qn('w:val'), str(field_id))
+        sdtPr.append(id_el)
+
+        sdtPr.append(OxmlElement('w:showingPlcHdr'))
+        sdtPr.append(OxmlElement('w:text'))
+        sdt.append(sdtPr)
+        sdt.append(OxmlElement('w:sdtEndPr'))
+
+        sdt_content = OxmlElement('w:sdtContent')
+        run = OxmlElement('w:r')
+        t = OxmlElement('w:t')
+        t.set(qn('xml:space'), 'preserve')
+        t.text = ''
+        run.append(t)
+        sdt_content.append(run)
+        sdt.append(sdt_content)
+        return sdt
+
+    def make_fillable(self, output_path):
+        """Converts the underscore-line answer-area anti-pattern (a bare
+        '____...' paragraph directly under a numbered question) into real,
+        empty content controls tagged by question number, e.g. 'q7_1' --
+        stable and self-describing, no per-template hand-authored field map
+        needed. A question with multiple consecutive answer lines (e.g. "list
+        each child's name and DOB") gets 'q7_1', 'q7_2', ... so each line is
+        independently readable. Everything else in the document (styles,
+        headers, the Jinja {{ }} header fields populate_template still fills
+        normally) is left untouched. Idempotent: a paragraph that no longer
+        looks like a bare underscore line (already converted) is left alone.
+        Returns the number of fields created."""
+        doc = Document(output_path)
+        used_ids = set()
+        for id_element in doc.element.body.iter(qn('w:id')):
+            try:
+                used_ids.add(int(id_element.get(qn('w:val'))))
+            except (TypeError, ValueError):
+                continue
+
+        def next_id():
+            n = 1
+            while n in used_ids:
+                n += 1
+            used_ids.add(n)
+            return n
+
+        current_num, current_text, line_index = None, None, 0
+        fields_created = 0
+        for para in doc.paragraphs:
+            text = para.text.strip()
+            q_match = _QUESTION_NUMBER_RE.match(text)
+            if q_match:
+                current_num, current_text = q_match.group(1), q_match.group(2)
+                line_index = 0
+                continue
+            if current_num and _UNDERSCORE_LINE_RE.match(text):
+                line_index += 1
+                tag = f"q{current_num}_{line_index}"
+                alias = f"Q{current_num}: {current_text}" if line_index == 1 \
+                    else f"Q{current_num} (line {line_index}): {current_text}"
+                sdt = self._build_sdt_field(tag, alias, next_id())
+                for run in list(para.runs):
+                    run._element.getparent().remove(run._element)
+                para._p.append(sdt)
+                fields_created += 1
+                continue
+            if text:
+                current_num, current_text, line_index = None, None, 0
+
+        doc.save(output_path)
+        return fields_created
+
+    def apply_forms_protection(self, output_path):
+        """Locks all non-field text from editing in Word (w:edit="forms")
+        while leaving w:sdt content controls themselves editable -- the same
+        pairing Word's own Restrict Editing -> "Filling in forms" uses.
+        No hash/password: a legitimate "declared but unenforced" protection
+        (Stop Protection needs no password), which is all that's needed
+        here -- the goal is keeping a client from accidentally editing the
+        printed questions, not securing the file against a determined user."""
+        doc = Document(output_path)
+        settings = doc.settings.element
+        existing = settings.find(qn('w:documentProtection'))
+        if existing is not None:
+            settings.remove(existing)
+        protection = OxmlElement('w:documentProtection')
+        protection.set(qn('w:edit'), 'forms')
+        protection.set(qn('w:enforcement'), '1')
+        settings.insert(0, protection)
+        doc.save(output_path)
+
     def validate_context(self, context, required_fields=None):
         """
         Validates context data dictionary against required fields.
@@ -79,9 +205,10 @@ class DocumentEngine:
         rendered without error but is still actually broken, rather than
         trusting that "no exception" means "correct." Returns a dict with
         `structural_error` (None if the file reopens cleanly) and
-        `unrendered_tags` (any literal {{ }} text still present -- a real
-        docxtpl failure signature, not a false positive)."""
-        issues = {"structural_error": None, "unrendered_tags": []}
+        `leak_tokens` (any leftover template tag or placeholder boilerplate
+        still present -- see _LEAK_PATTERNS -- real failure signatures, not
+        false positives)."""
+        issues = {"structural_error": None, "leak_tokens": [], "unrendered_tags": []}
         try:
             doc = Document(output_path)
         except Exception as e:
@@ -98,8 +225,11 @@ class DocumentEngine:
                 texts.extend(p.text for p in part.paragraphs)
 
         for text in texts:
-            for match in _UNRENDERED_TAG_RE.findall(text):
-                issues["unrendered_tags"].append(match)
+            for pattern_index, pattern in enumerate(_LEAK_PATTERNS):
+                for match in pattern.findall(text):
+                    issues["leak_tokens"].append(match)
+                    if pattern_index == 0:
+                        issues["unrendered_tags"].append(match)
         return issues
 
     def generate(self, context, output_path, include_toc=False, convert_to_pdf=False, required_fields=None):
@@ -136,7 +266,7 @@ class DocumentEngine:
         issues = self._check_rendered_output(output_path)
         issues["missing_fields"] = missing_fields
 
-        has_issues = bool(issues["structural_error"] or issues["unrendered_tags"] or issues["missing_fields"])
+        has_issues = bool(issues["structural_error"] or issues["leak_tokens"] or issues["missing_fields"])
         results = {
             "docx_path": output_path,
             "pdf_path": None,
