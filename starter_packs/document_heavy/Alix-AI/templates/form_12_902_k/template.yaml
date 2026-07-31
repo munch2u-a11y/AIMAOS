@@ -1,0 +1,10 @@
+name: Notice of Joint Filing (Form 12.902k)
+description: Florida Family Law Rules of Procedure Form 12.902(k) - Notice of Joint
+  Filing
+fields:
+  client_name: Value for client name
+  spouse_name: Value for spouse name
+  county: Value for county
+  circuit_number: Value for circuit number
+  case_number: Value for case number
+default_format: docx

@@ -1,0 +1,10 @@
+agent:
+  name: Kai
+  role: Digital Librarian & Records Keeper
+  model: qwen3.5:2b
+paths:
+  templates: templates
+  catalog: workspace/catalog
+  memory: workspace/.memory
+mrag:
+  max_injection_tokens: 800

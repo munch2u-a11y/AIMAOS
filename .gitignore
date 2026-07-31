@@ -1,14 +1,109 @@
-# Virtual environments & bytecode
+# ==============================================================================
+# AIMAOS PUBLIC GITIGNORE - 100% WORK PRODUCT & CONFIDENTIAL DATA IGNORE RULES
+# ==============================================================================
+
+# ------------------------------------------------------------------------------
+# 1. CLIENT WORK PRODUCT, CASE FILES, INTAKE, & OUTPUT ARCHIVES
+# ------------------------------------------------------------------------------
+**/workspace/output/
+**/workspace/output/**
+/workspace/
+**/workspace/inbox/
+tests/benchmark_results*.json
+**/workspace/inbound_emails/
+**/workspace/reference_materials/
+**/workspace/diagnostics/
+**/workspace/reports/
+**/workspace/calendar/
+**/workspace/logs/
+**/outbound_email_log.json
+**/outbound_disco*
+**/fwd*
+**/CLIENT_FILE.md
+**/.client_file_state.json
+**/.case_agent/
+**/.case_agent/**
+
+# Document Formats & Client Files (Catch-all for work product outside starter packs)
+*.docx
+*.pdf
+*.xlsx
+*.csv
+*.zip
+*.tar
+*.gz
+*.jpg
+*.jpeg
+*.png
+*.xhtml
+*.rtf
+
+# Re-include clean template blanks in starter_packs (the /*-AI/ rule already
+# excludes live agent dirs entirely, so no live-template re-include exists)
+!starter_packs/**/*.docx
+
+# ------------------------------------------------------------------------------
+# 2. RELATIONAL DATABASES, SQLITE, & DATABASE JOURNALS
+# ------------------------------------------------------------------------------
+*.sqlite
+*.sqlite3
+*.sqlite-journal
+*.db
+comms/office_database.sqlite*
+
+# ------------------------------------------------------------------------------
+# 3. INTER-AGENT IPC COMMUNICATION BUS, TASK LOGS, & STATE SNAPSHOTS
+# ------------------------------------------------------------------------------
+# Root-level runtime IPC state only. A bare "comms/" would also exclude the
+# shared kernel package core/comms/ (source code) from the repo.
+/comms/
+
+# ------------------------------------------------------------------------------
+# 4. PRIVATE mRAG BELIEF STORES & AGENT MEMORIES
+# ------------------------------------------------------------------------------
+**/.memory/
+**/.memory/**
+**/mrag_data/
+**/mrag_data/**
+
+# ------------------------------------------------------------------------------
+# 5. SECRETS, CREDENTIALS, & ENVIRONMENT CONFIGURATIONS
+# NOTE: patterns are exact-name/extension based on purpose. Broad globs like
+# **/*token* are dangerous here — they would silently exclude legitimate
+# source files (e.g. core/mrag/core/token_counting.py) from the public repo.
+# ------------------------------------------------------------------------------
+*.env
+.env
+credentials.env
+**/credentials.env
+*.pem
+*.key
+*_secret.json
+*_token.json
+secrets.yaml
+
+# ------------------------------------------------------------------------------
+# 6. GENERATED AGENT WORKSPACES
+# Every <Name>-AI/ workspace directory (including the roster agents) is generated
+# at setup time by `setup.py` from starter_packs/ (the source of truth).
+# ------------------------------------------------------------------------------
+/*-AI/
+!starter_packs/
+
+# ------------------------------------------------------------------------------
+# 7. PYTHON BYTECODE, VIRTUAL ENVS, SYSTEM & IDE ARTIFACTS
+# ------------------------------------------------------------------------------
 __pycache__/
 *.pyc
+*.pyo
+*.pyd
 .venv/
 venv/
 env/
-
-# Communication bus runtime queues
-comms/*/inbox/*.read
-comms/*/outbox/*.json
-
-# Output logs
-*.log
 .DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.log
+*.tmp
+*.swp

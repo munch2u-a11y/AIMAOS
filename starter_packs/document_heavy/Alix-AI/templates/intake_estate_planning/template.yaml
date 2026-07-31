@@ -1,0 +1,9 @@
+name: Estate Planning Intake Form
+description: Client-facing intake questionnaire covering Wills, Revocable Trusts,
+  and Deed transfers.
+fields:
+  client_name: Value for client name
+  date_sent: Value for date sent
+  case_number: Optional matter reference
+  office_name: Optional office name
+default_format: docx

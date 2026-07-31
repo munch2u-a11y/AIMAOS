@@ -1,0 +1,31 @@
+llm:
+  backend: ollama
+  model: qwen3.5:2b
+  ollama_host: http://localhost:11434
+  llamacpp_host: http://localhost:8080
+  temperature: 0.1
+  max_tokens: 4096
+paths:
+  templates: templates
+  skills: skills
+  inbox: workspace/inbox
+  output: workspace/output
+  sessions: workspace/.sessions
+  memory: workspace/.memory
+watcher:
+  enabled: true
+  poll_interval: 5.0
+  watch_downloads: true
+email:
+  enabled: false
+  imap_server: ''
+  smtp_server: ''
+  username: ''
+  password: ''
+mrag:
+  max_injection_tokens: 800
+  vector_store: dummy
+default_output_format: docx
+agent:
+  name: Alix
+  model: qwen3.5:2b

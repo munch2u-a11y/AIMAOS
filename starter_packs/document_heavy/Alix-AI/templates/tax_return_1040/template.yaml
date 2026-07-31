@@ -1,0 +1,15 @@
+description: IRS Form 1040 Individual Tax Return Template
+fields:
+- description: Taxpayer Name
+  name: client_name
+  required: true
+- description: Social Security Number
+  name: ssn
+  required: true
+- description: Filing Status
+  name: filing_status
+  required: true
+- description: Total Income ($)
+  name: total_income
+  required: true
+name: tax_return_1040

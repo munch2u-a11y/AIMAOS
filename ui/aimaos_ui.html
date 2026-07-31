@@ -3,15 +3,16 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>AIMAOS - AI Multi-Agent Office Suite OS</title>
+  <title>AIMAOS — AI Multi-Agent Office Suite OS</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
   <style>
     :root {
-      --bg-primary: #090d16;
+      --bg-primary: #0b0f19;
       --bg-surface: #111827;
-      --bg-card: rgba(17, 24, 39, 0.75);
+      --bg-card: rgba(17, 24, 39, 0.85);
+      --bg-card-hover: rgba(30, 41, 59, 0.9);
       --accent-primary: #38bdf8;
       --accent-secondary: #818cf8;
       --accent-glow: rgba(56, 189, 248, 0.25);
@@ -19,8 +20,8 @@
       --accent-warning: #fbbf24;
       --text-main: #f9fafb;
       --text-muted: #9ca3af;
-      --border-color: rgba(255, 255, 255, 0.08);
-      --font-family: 'Inter', system-ui, sans-serif;
+      --border-color: rgba(255, 255, 255, 0.1);
+      --font-family: 'Inter', system-ui, -apple-system, sans-serif;
     }
 
     * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -31,26 +32,36 @@
       min-height: 100vh;
       display: flex;
       flex-direction: column;
+      overflow-x: hidden;
     }
 
+    /* Top Header */
     header {
-      background: var(--bg-surface);
+      background: rgba(17, 24, 39, 0.95);
+      backdrop-filter: blur(16px);
       border-bottom: 1px solid var(--border-color);
-      padding: 1rem 2rem;
+      padding: 0.9rem 2rem;
       display: flex;
       justify-content: space-between;
       align-items: center;
+      position: sticky;
+      top: 0;
+      z-index: 100;
+    }
+
+    .logo-container {
+      display: flex;
+      align-items: center;
+      gap: 0.8rem;
     }
 
     .logo {
-      font-size: 1.3rem;
-      font-weight: 700;
+      font-size: 1.35rem;
+      font-weight: 800;
       background: linear-gradient(135deg, #38bdf8, #818cf8);
       -webkit-background-clip: text;
       -webkit-text-fill-color: transparent;
-      display: flex;
-      align-items: center;
-      gap: 0.6rem;
+      letter-spacing: -0.02em;
     }
 
     .status-badge {
@@ -61,9 +72,48 @@
       font-size: 0.8rem;
       font-weight: 600;
       border: 1px solid rgba(52, 211, 153, 0.3);
+      display: flex;
+      align-items: center;
+      gap: 0.4rem;
     }
 
-    /* Tab Navigation */
+    .status-dot {
+      width: 8px;
+      height: 8px;
+      background: var(--accent-success);
+      border-radius: 50%;
+      box-shadow: 0 0 8px var(--accent-success);
+    }
+
+    /* Zero-Prompt Quick Action Header Bar */
+    .quick-actions-bar {
+      display: flex;
+      gap: 0.6rem;
+      align-items: center;
+    }
+
+    .btn-quick {
+      background: rgba(255, 255, 255, 0.06);
+      border: 1px solid var(--border-color);
+      color: var(--text-main);
+      padding: 0.45rem 0.9rem;
+      border-radius: 8px;
+      font-size: 0.8rem;
+      font-weight: 500;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 0.4rem;
+      transition: all 0.2s ease;
+    }
+
+    .btn-quick:hover {
+      background: rgba(56, 189, 248, 0.15);
+      border-color: var(--accent-primary);
+      color: var(--accent-primary);
+    }
+
+    /* Navigation Tabs */
     .nav-tabs {
       background: var(--bg-surface);
       display: flex;
@@ -76,12 +126,15 @@
       background: none;
       border: none;
       color: var(--text-muted);
-      padding: 0.9rem 1.2rem;
+      padding: 0.9rem 1.3rem;
       font-weight: 500;
       font-size: 0.9rem;
       cursor: pointer;
       border-bottom: 2px solid transparent;
       transition: all 0.2s ease;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
     }
 
     .tab-btn:hover { color: var(--text-main); }
@@ -91,39 +144,235 @@
       font-weight: 600;
     }
 
+    /* Main Container */
     .container {
       padding: 1.5rem 2rem;
       flex: 1;
+      display: flex;
+      flex-direction: column;
     }
 
-    .tab-content { display: none; }
-    .tab-content.active { display: block; }
+    .tab-content { display: none; flex: 1; }
+    .tab-content.active { display: flex; flex-direction: column; gap: 1.2rem; }
 
+    /* Drag & Drop Intake Zone */
+    .drop-zone {
+      background: rgba(56, 189, 248, 0.03);
+      border: 2px dashed rgba(56, 189, 248, 0.3);
+      border-radius: 14px;
+      padding: 1.5rem;
+      text-align: center;
+      transition: all 0.2s ease;
+      cursor: pointer;
+      position: relative;
+    }
+
+    .drop-zone:hover, .drop-zone.dragover {
+      background: rgba(56, 189, 248, 0.08);
+      border-color: var(--accent-primary);
+      box-shadow: 0 0 25px rgba(56, 189, 248, 0.15);
+    }
+
+    .drop-title { font-size: 1.05rem; font-weight: 600; color: var(--accent-primary); margin-bottom: 0.3rem; }
+    .drop-subtitle { font-size: 0.85rem; color: var(--text-muted); }
+
+    /* Card styling */
     .card {
       background: var(--bg-card);
       backdrop-filter: blur(12px);
       border: 1px solid var(--border-color);
-      border-radius: 12px;
+      border-radius: 14px;
       padding: 1.5rem;
-      margin-bottom: 1.5rem;
-      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4);
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.35);
     }
 
     .card-title {
       font-size: 1.1rem;
-      font-weight: 600;
+      font-weight: 700;
       margin-bottom: 1rem;
       display: flex;
       justify-content: space-between;
       align-items: center;
+      color: var(--text-main);
     }
 
-    /* Agent Roster Grid */
+    /* Split-View Case Explorer */
+    .explorer-grid {
+      display: grid;
+      grid-template-columns: 320px 1fr;
+      gap: 1.5rem;
+      flex: 1;
+      min-height: 600px;
+    }
+
+    .case-sidebar {
+      display: flex;
+      flex-direction: column;
+      gap: 0.8rem;
+      background: rgba(17, 24, 39, 0.6);
+      border: 1px solid var(--border-color);
+      border-radius: 12px;
+      padding: 1rem;
+      max-height: 650px;
+      overflow-y: auto;
+    }
+
+    .case-item {
+      background: rgba(255, 255, 255, 0.03);
+      border: 1px solid var(--border-color);
+      border-radius: 10px;
+      padding: 0.9rem;
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+
+    .case-item:hover, .case-item.selected {
+      background: rgba(56, 189, 248, 0.12);
+      border-color: var(--accent-primary);
+      transform: translateX(4px);
+    }
+
+    .case-item-title { font-weight: 700; font-size: 0.95rem; color: var(--text-main); margin-bottom: 0.25rem; }
+    .case-item-meta { font-size: 0.75rem; color: var(--text-muted); display: flex; justify-content: space-between; }
+    .case-tag { background: rgba(129, 140, 248, 0.2); color: var(--accent-secondary); padding: 0.15rem 0.4rem; border-radius: 4px; font-weight: 600; }
+
+    /* Interactive Document & Summary Viewer */
+    .viewer-pane {
+      background: rgba(17, 24, 39, 0.7);
+      border: 1px solid var(--border-color);
+      border-radius: 12px;
+      padding: 1.5rem;
+      display: flex;
+      flex-direction: column;
+      gap: 1rem;
+      overflow-y: auto;
+      max-height: 650px;
+    }
+
+    .viewer-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      border-bottom: 1px solid var(--border-color);
+      padding-bottom: 1rem;
+    }
+
+    .viewer-title { font-size: 1.25rem; font-weight: 700; color: var(--accent-primary); }
+    
+    .doc-rendered {
+      background: rgba(0, 0, 0, 0.35);
+      border: 1px solid var(--border-color);
+      border-radius: 8px;
+      padding: 1.2rem;
+      font-size: 0.9rem;
+      line-height: 1.6;
+      white-space: pre-wrap;
+      font-family: var(--font-family);
+      color: #e5e7eb;
+      max-height: 420px;
+      overflow-y: auto;
+    }
+
+    .file-chip-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+      gap: 0.8rem;
+      margin-top: 0.8rem;
+    }
+
+    .file-chip {
+      background: rgba(255, 255, 255, 0.04);
+      border: 1px solid var(--border-color);
+      border-radius: 8px;
+      padding: 0.8rem;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      transition: all 0.2s ease;
+    }
+
+    .file-chip:hover {
+      border-color: var(--accent-primary);
+      background: rgba(56, 189, 248, 0.08);
+    }
+
+    .file-info { font-size: 0.82rem; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .file-size { font-size: 0.72rem; color: var(--text-muted); }
+
+    .btn-open-file {
+      background: linear-gradient(135deg, #0284c7, #2563eb);
+      color: white;
+      border: none;
+      border-radius: 6px;
+      padding: 0.35rem 0.75rem;
+      font-size: 0.75rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: opacity 0.2s;
+    }
+
+    .btn-open-file:hover { opacity: 0.9; }
+
+    /* One-Click Form Studio Grid */
+    .template-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 1.2rem;
+      margin-bottom: 1.5rem;
+    }
+
+    .template-card {
+      background: rgba(255, 255, 255, 0.03);
+      border: 1px solid var(--border-color);
+      border-radius: 12px;
+      padding: 1.2rem;
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+
+    .template-card:hover, .template-card.selected {
+      background: rgba(56, 189, 248, 0.12);
+      border-color: var(--accent-primary);
+      transform: translateY(-2px);
+    }
+
+    .template-card-title { font-weight: 700; font-size: 0.95rem; color: var(--accent-primary); margin-bottom: 0.4rem; }
+    .template-card-desc { font-size: 0.8rem; color: var(--text-muted); line-height: 1.4; }
+
+    /* Form Inputs */
+    .form-group { margin-bottom: 1rem; }
+    label { display: block; font-size: 0.82rem; color: var(--text-muted); margin-bottom: 0.4rem; font-weight: 500; }
+    input[type="text"], select, textarea {
+      width: 100%;
+      background: rgba(0, 0, 0, 0.4);
+      border: 1px solid var(--border-color);
+      border-radius: 8px;
+      padding: 0.75rem 1rem;
+      color: var(--text-main);
+      font-family: inherit;
+      font-size: 0.9rem;
+    }
+
+    .btn-primary {
+      background: linear-gradient(135deg, #38bdf8, #6366f1);
+      color: white;
+      border: none;
+      border-radius: 8px;
+      padding: 0.8rem 1.6rem;
+      font-weight: 600;
+      font-size: 0.9rem;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      box-shadow: 0 4px 15px rgba(56, 189, 248, 0.3);
+    }
+
+    .btn-primary:hover { opacity: 0.92; transform: translateY(-1px); }
+
+    /* Agent Roster Cards */
     .agent-grid {
       display: grid;
       grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
       gap: 1rem;
-      margin-bottom: 1.5rem;
     }
 
     .agent-card {
@@ -132,91 +381,183 @@
       border-radius: 10px;
       padding: 1rem;
       text-align: center;
-      transition: transform 0.2s ease, border-color 0.2s ease;
+      transition: all 0.2s ease;
     }
 
     .agent-card:hover {
-      transform: translateY(-2px);
       border-color: var(--accent-primary);
       box-shadow: 0 0 20px var(--accent-glow);
     }
 
-    .agent-name { font-weight: 700; font-size: 1rem; color: var(--accent-primary); margin-bottom: 0.3rem; }
+    .agent-name { font-weight: 700; font-size: 1rem; color: var(--accent-primary); margin-bottom: 0.2rem; }
     .agent-role { font-size: 0.75rem; color: var(--text-muted); }
 
-    /* Tables */
-    table { width: 100%; border-collapse: collapse; margin-top: 0.5rem; }
-    th, td { padding: 0.9rem; text-align: left; border-bottom: 1px solid var(--border-color); font-size: 0.85rem; }
-    th { color: var(--text-muted); font-weight: 500; }
-
-    /* Forms & Inputs */
-    .form-group { margin-bottom: 1.2rem; }
-    label { display: block; font-size: 0.85rem; color: var(--text-muted); margin-bottom: 0.4rem; font-weight: 500; }
-    input[type="text"], select, textarea {
-      width: 100%;
-      background: rgba(0, 0, 0, 0.4);
+    /* Task Progress Cards */
+    .task-card-list { display: flex; flex-direction: column; gap: 0.8rem; }
+    .task-progress-card {
+      background: rgba(255, 255, 255, 0.03);
       border: 1px solid var(--border-color);
-      border-radius: 8px;
-      padding: 0.8rem 1rem;
-      color: var(--text-main);
-      font-family: inherit;
-      font-size: 0.9rem;
+      border-radius: 10px;
+      padding: 0.9rem 1.2rem;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
     }
 
-    textarea { resize: vertical; min-height: 100px; }
+    .task-p-title { font-weight: 600; font-size: 0.9rem; }
+    .task-p-agent { font-size: 0.8rem; color: var(--accent-secondary); font-weight: 700; }
 
-    .btn {
-      background: linear-gradient(135deg, #38bdf8, #6366f1);
-      color: white;
-      border: none;
-      border-radius: 8px;
-      padding: 0.8rem 1.6rem;
-      font-weight: 600;
-      cursor: pointer;
-      transition: opacity 0.2s ease;
-    }
-
-    .btn:hover { opacity: 0.9; }
-
-    /* Chat Interface */
-    .chat-box { height: 520px; display: flex; flex-direction: column; }
+    /* Direct Messenger Chat */
+    .chat-box { height: 500px; display: flex; flex-direction: column; }
     .messages { flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 1rem; padding-right: 0.5rem; margin-bottom: 1rem; }
-    .msg { padding: 1rem 1.2rem; border-radius: 12px; max-width: 80%; font-size: 0.9rem; line-height: 1.5; }
+    .msg { padding: 0.9rem 1.2rem; border-radius: 12px; max-width: 80%; font-size: 0.9rem; line-height: 1.5; }
     .msg.user { align-self: flex-end; background: linear-gradient(135deg, #0284c7, #2563eb); color: white; }
     .msg.echo { align-self: flex-start; background: rgba(255, 255, 255, 0.05); border: 1px solid var(--border-color); }
-
-    /* Activity Feed Ticker */
-    .ticker { font-size: 0.8rem; color: var(--text-muted); max-height: 180px; overflow-y: auto; display: flex; flex-direction: column; gap: 0.5rem; }
-    .ticker-item { padding: 0.5rem 0.8rem; border-left: 3px solid var(--accent-primary); background: rgba(255, 255, 255, 0.02); }
   </style>
 </head>
 <body>
 
   <header>
-    <div class="logo">⚡ AIMAOS Enterprise Dashboard</div>
-    <div class="status-badge">● 7 MINI-AGENTS ONLINE</div>
+    <div class="logo-container">
+      <div class="logo">⚡ AIMAOS Office OS</div>
+      <div class="status-badge"><div class="status-dot"></div> 7 MINI-AGENTS AUTONOMOUS</div>
+    </div>
+    <div class="quick-actions-bar">
+      <button class="btn-quick" onclick="triggerQuickAction('audit_all')">🛡️ Run Office Security Audit</button>
+      <button class="btn-quick" onclick="triggerQuickAction('scan_drives')">📁 Scan Workspaces</button>
+      <button class="btn-quick" onclick="triggerQuickAction('synthesize_skills')">🧠 Trigger Skill Formation</button>
+    </div>
   </header>
 
   <div class="nav-tabs">
-    <button class="tab-btn active" onclick="switchTab('dashboard')">🏢 Office Dashboard</button>
-    <button class="tab-btn" onclick="switchTab('chat')">💬 Direct Messenger (Finn)</button>
-    <button class="tab-btn" onclick="switchTab('docs')">📄 Document Studio (Alix)</button>
-    <button class="tab-btn" onclick="switchTab('reports')">📊 System Reports (Zoe/Quinn)</button>
-    <button class="tab-btn" onclick="switchTab('cloner')">🤖 Agent Cloner (Rae)</button>
+    <button class="tab-btn active" onclick="switchTab('explorer')">📂 Case Explorer & Interactive Viewer</button>
+    <button class="tab-btn" onclick="switchTab('studio')">📄 One-Click Form Studio</button>
+    <button class="tab-btn" onclick="switchTab('messenger')">💬 Assistant Messenger & Voice Scribe</button>
+    <button class="tab-btn" onclick="switchTab('monitor')">📊 Autonomous Office Monitor</button>
+    <button class="tab-btn" onclick="switchTab('cloner')">🤖 Specialist Agent Cloner</button>
   </div>
 
   <div class="container">
 
-    <!-- TAB 1: Office Dashboard -->
-    <div id="tab-dashboard" class="tab-content active">
+    <!-- TAB 1: Case Explorer & Interactive Viewer (Default Main View) -->
+    <div id="tab-explorer" class="tab-content active">
+
+      <!-- Drag & Drop Intake Banner -->
+      <div class="drop-zone" id="drop-zone" onclick="document.getElementById('file-input').click()">
+        <input type="file" id="file-input" style="display:none" onchange="handleFileSelect(event)">
+        <div class="drop-title">📥 Drag & Drop Client Intake Files or Notes Here</div>
+        <div class="drop-subtitle">Click or drop any text document/intake file to automatically provision a dedicated CaseManager & update case records.</div>
+      </div>
+
+      <div class="explorer-grid">
+        <!-- Left: Case Directory Sidebar -->
+        <div class="case-sidebar" id="case-sidebar">
+          <div style="font-size:0.85rem; font-weight:700; color:var(--text-muted); margin-bottom:0.4rem; text-transform:uppercase; letter-spacing:0.05em;">Client Directory</div>
+          <div id="case-list-items">
+            <div style="color:var(--text-muted); font-size:0.85rem; text-align:center; padding:1rem;">Loading client cases...</div>
+          </div>
+        </div>
+
+        <!-- Right: Interactive Document & Summary Viewer -->
+        <div class="viewer-pane" id="viewer-pane">
+          <div class="viewer-header">
+            <div>
+              <div class="viewer-title" id="selected-client-name">Select a Client Case</div>
+              <div style="font-size:0.8rem; color:var(--text-muted);" id="selected-case-path">Click any case on the left sidebar to view its live summary and documents.</div>
+            </div>
+            <button class="btn-quick" id="btn-open-folder" style="display:none;" onclick="openSelectedFolder()">📁 Open Folder in Explorer</button>
+          </div>
+
+          <div>
+            <div style="font-size:0.85rem; font-weight:700; color:var(--accent-secondary); margin-bottom:0.4rem;">📄 Live Case Record (CLIENT_FILE.md)</div>
+            <div class="doc-rendered" id="doc-rendered-content">No document selected.</div>
+          </div>
+
+          <div>
+            <div style="font-size:0.85rem; font-weight:700; color:var(--accent-primary); margin-bottom:0.4rem;">📁 Client Documents & Filings</div>
+            <div class="file-chip-grid" id="file-chip-grid">
+              <div style="color:var(--text-muted); font-size:0.85rem;">No files listed.</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- TAB 2: One-Click Form Studio -->
+    <div id="tab-studio" class="tab-content">
       <div class="card">
-        <div class="card-title">AIMAOS Agent Roster</div>
+        <div class="card-title">One-Click Court & Business Form Studio (Alix-AI)</div>
+        <div style="font-size:0.85rem; color:var(--text-muted); margin-bottom:1.2rem;">Select a document template below, confirm details, and click Generate. Alix renders docx templates and complies OpenXML TOC formatting automatically.</div>
+        
+        <div class="template-grid">
+          <div class="template-card selected" onclick="selectTemplate('form_12_982_a', this)">
+            <div class="template-card-title">Form 12.982(a)</div>
+            <div class="template-card-desc">Petition for Change of Name (Adult)</div>
+          </div>
+          <div class="template-card" onclick="selectTemplate('form_12_982_b', this)">
+            <div class="template-card-title">Form 12.982(b)</div>
+            <div class="template-card-desc">Final Judgment of Change of Name (Adult)</div>
+          </div>
+          <div class="template-card" onclick="selectTemplate('form_12_982_f', this)">
+            <div class="template-card-title">Form 12.982(f)</div>
+            <div class="template-card-desc">Petition for Change of Name (Minor Child)</div>
+          </div>
+          <div class="template-card" onclick="selectTemplate('form_12_901_a', this)">
+            <div class="template-card-title">Form 12.901(a)</div>
+            <div class="template-card-desc">Joint Petition for Simplified Dissolution of Marriage</div>
+          </div>
+        </div>
+
+        <form onsubmit="event.preventDefault(); generateDocument();">
+          <input type="hidden" id="doc-template" value="form_12_982_a">
+          <div style="display:grid; grid-template-columns: 1fr 1fr; gap:1rem;">
+            <div class="form-group">
+              <label>Client Full Name</label>
+              <input type="text" id="doc-client-name" placeholder="e.g. Alex Sample" value="Alex Sample" required>
+            </div>
+            <div class="form-group">
+              <label>County, Florida</label>
+              <input type="text" id="doc-county" placeholder="e.g. Leon, Duval, Clay" value="Leon" required>
+            </div>
+          </div>
+          <div class="form-group">
+            <label>Requested New Name (If Applicable)</label>
+            <input type="text" id="doc-new-name" placeholder="e.g. Alex Newname" value="Alex Newname">
+          </div>
+          <button type="submit" class="btn-primary">✨ Generate & Render Document Package</button>
+        </form>
+        <div id="doc-output" style="margin-top:1rem; font-size:0.9rem; font-weight:600; color:var(--accent-success);"></div>
+      </div>
+    </div>
+
+    <!-- TAB 3: Assistant Messenger & Voice Scribe -->
+    <div id="tab-messenger" class="tab-content">
+      <div class="card chat-box">
+        <div class="card-title">
+          <span>Office Direct Messenger & Voice Gateway</span>
+          <span style="font-size:0.8rem; color:var(--accent-success);">Agent: Finn (Security & Comms Gateway)</span>
+        </div>
+        <div class="messages" id="chat-messages">
+          <div class="msg echo">Hello! I am <b>Finn</b>, your Security Officer & Comms Gateway. You can send me direct notes or dictations, and I will route them straight to the appropriate CaseManager or office agent.</div>
+        </div>
+        <div style="display:flex; gap:0.6rem;">
+          <input type="text" id="user-input" placeholder="Type a message or note for your office agents..." onkeydown="if(event.key==='Enter') sendChat()">
+          <button class="btn-primary" onclick="sendChat()">Send</button>
+          <button class="btn-quick" style="background:#eab308; color:#000; font-weight:700;" onclick="sendVoiceScribe()">🎙️ Log Voice Dictation</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- TAB 4: Autonomous Office Monitor -->
+    <div id="tab-monitor" class="tab-content">
+      <div class="card">
+        <div class="card-title">AIMAOS Starter Agent Roster</div>
         <div class="agent-grid">
           <div class="agent-card"><div class="agent-name">Alix</div><div class="agent-role">Doc Producer</div></div>
           <div class="agent-card"><div class="agent-name">Kai</div><div class="agent-role">Librarian</div></div>
           <div class="agent-card"><div class="agent-name">Marley</div><div class="agent-role">Office Manager</div></div>
           <div class="agent-card"><div class="agent-name">Quinn</div><div class="agent-role">Researcher</div></div>
-          <div class="agent-card"><div class="agent-card-name agent-name">Zoe</div><div class="agent-role">DevOps</div></div>
+          <div class="agent-card"><div class="agent-name">Zoe</div><div class="agent-role">DevOps</div></div>
           <div class="agent-card"><div class="agent-name">Finn</div><div class="agent-role">Security</div></div>
           <div class="agent-card"><div class="agent-name">Rae</div><div class="agent-role">Agent Maker</div></div>
         </div>
@@ -224,98 +565,20 @@
 
       <div class="card">
         <div class="card-title">
-          <span>Active Office Task Board</span>
-          <button class="btn" style="padding:0.4rem 0.8rem; font-size:0.75rem;" onclick="fetchOfficeStatus()">Refresh</button>
+          <span>Active Task Progress Board</span>
+          <button class="btn-quick" onclick="fetchOfficeStatus()">Refresh Tasks</button>
         </div>
-        <table>
-          <thead>
-            <tr>
-              <th>Task Title</th>
-              <th>Assigned Agent</th>
-              <th>Priority</th>
-              <th>Status</th>
-            </tr>
-          </thead>
-          <tbody id="task-table">
-            <tr><td colspan="4" style="text-align:center; color:var(--text-muted);">Loading tasks...</td></tr>
-          </tbody>
-        </table>
-      </div>
-
-      <div class="card">
-        <div class="card-title">Live Activity Stream Ticker</div>
-        <div class="ticker" id="activity-ticker">
-          <div class="ticker-item">AIMAOS Office OS initialized. Marley monitoring resource turns...</div>
+        <div class="task-card-list" id="task-card-list">
+          <div style="color:var(--text-muted); font-size:0.85rem;">Loading tasks...</div>
         </div>
       </div>
     </div>
 
-    <!-- TAB 2: Direct Messenger Chat -->
-    <div id="tab-chat" class="tab-content">
-      <div class="card chat-box">
-        <div class="card-title">
-          <span>Direct Messenger</span>
-          <span style="font-size:0.8rem; color:var(--accent-success);">Agent: Finn (Security Officer)</span>
-        </div>
-        <div class="messages" id="chat-messages">
-          <div class="msg echo">Hello! I am <b>Finn</b>, your Security Officer & Comms Gateway. I keep an eye on Alix, Kai, Marley, Quinn, Zoe, and Rae. How can I help you today?</div>
-        </div>
-        <div style="display:flex; gap:0.5rem;">
-          <input type="text" id="user-input" placeholder="Ask Finn a question or request a task..." onkeydown="if(event.key==='Enter') sendChat()">
-          <button class="btn" onclick="sendChat()">Send</button>
-        </div>
-      </div>
-    </div>
-
-    <!-- TAB 3: Document Studio -->
-    <div id="tab-docs" class="tab-content">
-      <div class="card">
-        <div class="card-title">Document Production Studio (Alix-AI)</div>
-        <form onsubmit="event.preventDefault(); generateDocument();">
-          <div class="form-group">
-            <label>Select Court Template</label>
-            <select id="doc-template">
-              <option value="form_12_982_a">Form 12.982(a) - Petition for Change of Name (Adult)</option>
-              <option value="form_12_982_b">Form 12.982(b) - Final Judgment of Change of Name (Adult)</option>
-              <option value="form_12_982_f">Form 12.982(f) - Petition for Change of Name (Minor Child)</option>
-              <option value="form_12_901_a">Form 12.901(a) - Joint Petition for Simplified Dissolution of Marriage</option>
-              <option value="form_12_902_c">Form 12.902(c) - Family Law Financial Affidavit (Long Form)</option>
-              <option value="form_12_902_e">Form 12.902(e) - Child Support Guidelines Worksheet</option>
-            </select>
-          </div>
-          <div class="form-group">
-            <label>Client Full Name</label>
-            <input type="text" id="doc-client-name" placeholder="e.g. Alexander James Montgomery" required>
-          </div>
-          <div class="form-group">
-            <label>County, Florida</label>
-            <input type="text" id="doc-county" placeholder="e.g. Leon, Duval, Clay, St. Johns" required>
-          </div>
-          <div class="form-group">
-            <label>Requested New Name (If Applicable)</label>
-            <input type="text" id="doc-new-name" placeholder="e.g. Alexander Sterling">
-          </div>
-          <button type="submit" class="btn">Generate & Render Document</button>
-        </form>
-        <div id="doc-output" style="margin-top:1rem; font-size:0.9rem;"></div>
-      </div>
-    </div>
-
-    <!-- TAB 4: System Reports -->
-    <div id="tab-reports" class="tab-content">
-      <div class="card">
-        <div class="card-title">System Improvement & Legal Reports</div>
-        <button class="btn" style="margin-bottom:1rem;" onclick="fetchReports()">Fetch Latest Reports</button>
-        <div id="reports-output" style="white-space: pre-wrap; font-family: monospace; font-size:0.85rem; background:rgba(0,0,0,0.3); padding:1rem; border-radius:8px; max-height:400px; overflow-y:auto;">
-          Click 'Fetch Latest Reports' to load Zoe & Quinn reports...
-        </div>
-      </div>
-    </div>
-
-    <!-- TAB 5: Agent Cloner -->
+    <!-- TAB 5: Specialist Agent Cloner -->
     <div id="tab-cloner" class="tab-content">
       <div class="card">
         <div class="card-title">Agent Cloner Studio (Rae-AI)</div>
+        <div style="font-size:0.85rem; color:var(--text-muted); margin-bottom:1rem;">Instantiate custom mini-agents integrated into the main office board and IPC bus.</div>
         <form onsubmit="event.preventDefault(); cloneAgent();">
           <div class="form-group">
             <label>New Agent Name</label>
@@ -325,7 +588,7 @@
             <label>Specialized Role & Title</label>
             <input type="text" id="clone-role" placeholder="e.g. Contract Auditor & Risk Analyzer" required>
           </div>
-          <button type="submit" class="btn">Instantiate Agent Clone</button>
+          <button type="submit" class="btn-primary">🤖 Instantiate Agent Clone</button>
         </form>
         <div id="clone-output" style="margin-top:1rem; font-size:0.9rem;"></div>
       </div>
@@ -334,38 +597,226 @@
   </div>
 
   <script>
+    let currentSelectedSlug = null;
+    let currentSelectedFolderPath = null;
+
+    document.addEventListener('DOMContentLoaded', () => {
+      fetchCases();
+      fetchOfficeStatus();
+      setupDragAndDrop();
+    });
+
     function switchTab(tabId) {
       document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
       document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
       
-      event.target.classList.add('active');
+      event.currentTarget.classList.add('active');
       document.getElementById('tab-' + tabId).classList.add('active');
+      
+      if (tabId === 'explorer') fetchCases();
+      if (tabId === 'monitor') fetchOfficeStatus();
+    }
+
+    async function fetchCases() {
+      try {
+        const res = await fetch('/api/cases');
+        const data = await res.json();
+        const container = document.getElementById('case-list-items');
+
+        if (data.cases && data.cases.length > 0) {
+          container.innerHTML = data.cases.map(c => `
+            <div class="case-item ${c.client_slug === currentSelectedSlug ? 'selected' : ''}" onclick="selectCase('${c.client_slug}', this)">
+              <div class="case-item-title">${c.client_name}</div>
+              <div class="case-item-meta">
+                <span>${c.matter_type || 'Case File'}</span>
+                <span class="case-tag">${c.status || 'open'}</span>
+              </div>
+            </div>
+          `).join('');
+
+          if (!currentSelectedSlug && data.cases.length > 0) {
+            selectCase(data.cases[0].client_slug);
+          }
+        } else {
+          container.innerHTML = '<div style="color:var(--text-muted); font-size:0.85rem; text-align:center; padding:1rem;">No client cases found. Drag & drop a file above to create one!</div>';
+        }
+      } catch (e) {
+        console.error(e);
+      }
+    }
+
+    async function selectCase(slug, el = null) {
+      currentSelectedSlug = slug;
+      if (el) {
+        document.querySelectorAll('.case-item').forEach(i => i.classList.remove('selected'));
+        el.classList.add('selected');
+      }
+
+      try {
+        const res = await fetch(`/api/case_file?slug=${encodeURIComponent(slug)}`);
+        const data = await res.json();
+
+        document.getElementById('selected-client-name').innerText = slug.replace(/_/g, ' ').toUpperCase();
+        document.getElementById('doc-rendered-content').innerText = data.summary_md || 'No summary generated.';
+
+        const grid = document.getElementById('file-chip-grid');
+        if (data.files && data.files.length > 0) {
+          currentSelectedFolderPath = data.files[0].abs_path ? data.files[0].abs_path.substring(0, data.files[0].abs_path.lastIndexOf('/')) : null;
+          document.getElementById('btn-open-folder').style.display = 'inline-flex';
+
+          grid.innerHTML = data.files.map(f => `
+            <div class="file-chip">
+              <div>
+                <div class="file-info" title="${f.name}">${f.name}</div>
+                <div class="file-size">${(f.size / 1024).toFixed(1)} KB</div>
+              </div>
+              <button class="btn-open-file" onclick="openFile('${f.abs_path.replace(/\\/g, '\\\\')}')">Open</button>
+            </div>
+          `).join('');
+        } else {
+          grid.innerHTML = '<div style="color:var(--text-muted); font-size:0.85rem;">No files uploaded in client directory yet.</div>';
+          document.getElementById('btn-open-folder').style.display = 'none';
+        }
+      } catch (e) {
+        console.error(e);
+      }
+    }
+
+    async function openFile(filePath) {
+      try {
+        const res = await fetch('/api/open_file', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ path: filePath })
+        });
+        const data = await res.json();
+        alert(data.message);
+      } catch (e) {
+        console.error(e);
+      }
+    }
+
+    function openSelectedFolder() {
+      if (currentSelectedFolderPath) {
+        openFile(currentSelectedFolderPath);
+      }
+    }
+
+    /* Drag & Drop Setup */
+    function setupDragAndDrop() {
+      const zone = document.getElementById('drop-zone');
+      ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+        zone.addEventListener(eventName, preventDefaults, false);
+      });
+
+      function preventDefaults(e) { e.preventDefault(); e.stopPropagation(); }
+
+      ['dragenter', 'dragover'].forEach(eventName => {
+        zone.addEventListener(eventName, () => zone.classList.add('dragover'), false);
+      });
+
+      ['dragleave', 'drop'].forEach(eventName => {
+        zone.addEventListener(eventName, () => zone.classList.remove('dragover'), false);
+      });
+
+      zone.addEventListener('drop', handleDrop, false);
+    }
+
+    function handleDrop(e) {
+      const dt = e.dataTransfer;
+      const files = dt.files;
+      if (files.length > 0) uploadFile(files[0]);
+    }
+
+    function handleFileSelect(e) {
+      const files = e.target.files;
+      if (files.length > 0) uploadFile(files[0]);
+    }
+
+    async function uploadFile(file) {
+      const clientName = prompt("Enter Client Name for this intake file:", file.name.split('.')[0]) || "Client Intake";
+      const reader = new FileReader();
+      reader.onload = async function(evt) {
+        const content = evt.target.result;
+        try {
+          const res = await fetch('/api/upload', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              client_name: clientName,
+              file_name: file.name,
+              content: content
+            })
+          });
+          const data = await res.json();
+          alert(data.message);
+          fetchCases();
+        } catch (err) {
+          console.error(err);
+        }
+      };
+      reader.readAsText(file);
+    }
+
+    function selectTemplate(tmplId, el) {
+      document.querySelectorAll('.template-card').forEach(c => c.classList.remove('selected'));
+      el.classList.add('selected');
+      document.getElementById('doc-template').value = tmplId;
+    }
+
+    async function generateDocument() {
+      const tmpl = document.getElementById('doc-template').value;
+      const cname = document.getElementById('doc-client-name').value;
+      const county = document.getElementById('doc-county').value;
+      const nname = document.getElementById('doc-new-name').value;
+
+      try {
+        const res = await fetch('/api/generate_doc', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ template: tmpl, client_name: cname, county: county, new_name: nname })
+        });
+        const data = await res.json();
+        document.getElementById('doc-output').innerText = "✨ " + data.message;
+        fetchCases();
+      } catch (e) {
+        console.error(e);
+      }
+    }
+
+    async function triggerQuickAction(actionName) {
+      try {
+        const res = await fetch('/api/quick_action', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ action: actionName })
+        });
+        const data = await res.json();
+        alert("⚡ " + data.message);
+        fetchOfficeStatus();
+      } catch (e) {
+        console.error(e);
+      }
     }
 
     async function fetchOfficeStatus() {
       try {
         const res = await fetch('/api/status');
         const data = await res.json();
+        const list = document.getElementById('task-card-list');
 
-        const tbody = document.getElementById('task-table');
         if (data.active_tasks && data.active_tasks.length > 0) {
-          tbody.innerHTML = data.active_tasks.map(t => `
-            <tr>
-              <td>${t.title}</td>
-              <td><b>${t.assigned_agent}</b></td>
-              <td><span style="color:var(--accent-warning)">${t.priority}</span></td>
-              <td>${t.status}</td>
-            </tr>
+          list.innerHTML = data.active_tasks.map(t => `
+            <div class="task-progress-card">
+              <div>
+                <div class="task-p-title">${t.title}</div>
+                <div style="font-size:0.75rem; color:var(--text-muted);">Priority: ${t.priority}</div>
+              </div>
+              <div class="task-p-agent">${t.assigned_agent}</div>
+            </div>
           `).join('');
         } else {
-          tbody.innerHTML = '<tr><td colspan="4" style="text-align:center; color:var(--text-muted);">No active tasks pending. Office Board is clear.</td></tr>';
-        }
-
-        const ticker = document.getElementById('activity-ticker');
-        if (data.recent_activity && data.recent_activity.length > 0) {
-          ticker.innerHTML = data.recent_activity.map(a => `
-            <div class="ticker-item">[${a.timestamp}] ${a.message}</div>
-          `).join('');
+          list.innerHTML = '<div style="color:var(--text-muted); font-size:0.85rem;">No active tasks pending. Office Board is clear.</div>';
         }
       } catch (e) {
         console.error(e);
@@ -383,7 +834,6 @@
       uMsg.innerText = text;
       chat.appendChild(uMsg);
       input.value = '';
-      chat.scrollTop = chat.scrollHeight;
 
       try {
         const res = await fetch('/api/chat', {
@@ -392,62 +842,35 @@
           body: JSON.stringify({ message: text })
         });
         const data = await res.json();
-        
         const fMsg = document.createElement('div');
         fMsg.className = 'msg echo';
         fMsg.innerHTML = data.response;
         chat.appendChild(fMsg);
         chat.scrollTop = chat.scrollHeight;
-        fetchOfficeStatus();
       } catch (e) {
         console.error(e);
       }
     }
 
-    async function generateDocument() {
-      const tpl = document.getElementById('doc-template').value;
-      const cname = document.getElementById('doc-client-name').value;
-      const county = document.getElementById('doc-county').value;
-      const nname = document.getElementById('doc-new-name').value;
-
-      const out = document.getElementById('doc-output');
-      out.innerHTML = '<span style="color:var(--accent-warning)">Alix is rendering court template...</span>';
-
+    async function sendVoiceScribe() {
+      const note = prompt("Enter text dictation for Voice Scribe:");
+      if (!note) return;
       try {
-        const res = await fetch('/api/generate_doc', {
+        const res = await fetch('/api/voice_scribe', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            template: tpl,
-            client_name: cname,
-            county: county,
-            new_name: nname
-          })
+          body: JSON.stringify({ text: note })
         });
         const data = await res.json();
-        out.innerHTML = `<span style="color:var(--accent-success)">✅ ${data.message}</span>`;
-        fetchOfficeStatus();
+        alert(data.message);
       } catch (e) {
-        out.innerHTML = `<span style="color:red">Error: ${e}</span>`;
-      }
-    }
-
-    async function fetchReports() {
-      const out = document.getElementById('reports-output');
-      try {
-        const res = await fetch('/api/reports');
-        const data = await res.json();
-        out.innerText = data.reports || 'No reports found.';
-      } catch (e) {
-        out.innerText = 'Error fetching reports: ' + e;
+        console.error(e);
       }
     }
 
     async function cloneAgent() {
       const name = document.getElementById('clone-name').value;
       const role = document.getElementById('clone-role').value;
-      const out = document.getElementById('clone-output');
-
       try {
         const res = await fetch('/api/clone_agent', {
           method: 'POST',
@@ -455,14 +878,11 @@
           body: JSON.stringify({ agent_name: name, role: role })
         });
         const data = await res.json();
-        out.innerHTML = `<span style="color:var(--accent-success)">✅ ${data.message}</span>`;
+        document.getElementById('clone-output').innerText = data.message;
       } catch (e) {
-        out.innerHTML = `<span style="color:red">Error cloning agent: ${e}</span>`;
+        console.error(e);
       }
     }
-
-    fetchOfficeStatus();
-    setInterval(fetchOfficeStatus, 4000);
   </script>
 </body>
 </html>

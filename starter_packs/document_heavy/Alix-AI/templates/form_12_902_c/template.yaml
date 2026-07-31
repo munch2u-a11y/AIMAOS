@@ -1,0 +1,14 @@
+name: Family Law Financial Affidavit Long Form (Form 12.902c)
+description: Florida Family Law Rules of Procedure Form 12.902(c) - Family Law Financial
+  Affidavit (Long Form)
+fields:
+  client_name: Value for client name
+  petitioner_name: Value for petitioner name
+  respondent_name: Value for respondent name
+  county: Value for county
+  circuit_number: Value for circuit number
+  case_number: Value for case number
+  division: Value for division
+  occupation: Value for occupation
+  employer: Value for employer
+default_format: docx

@@ -1,13 +1,21 @@
 import os
+
+def _find_aimaos_root():
+    p = os.path.dirname(os.path.abspath(__file__))
+    while p != os.path.dirname(p) and not os.path.exists(os.path.join(p, "aimaos_config.yaml")):
+        p = os.path.dirname(p)
+    return p
+AIMAOS_ROOT = os.environ.get("AIMAOS_ROOT") or _find_aimaos_root()
 import sys
 import json
 import importlib.util
 
-sys.path.insert(0, "/path/to/AIMAOS/Alix-AI")
-from core.document_engine import DocumentEngine
+sys.path.insert(0, AIMAOS_ROOT)
+sys.path.insert(0, os.path.join(AIMAOS_ROOT, "Alix-AI"))
+from business.document_engine import DocumentEngine
 from core.comms.office_board import OfficeBoard
 
-USER_EMAIL = "helix.agi.system@gmail.com"
+USER_EMAIL = "client@example.com"
 
 def load_module(mod_name, file_path):
     spec = importlib.util.spec_from_file_location(mod_name, file_path)
@@ -23,12 +31,12 @@ def run_multi_county_dispatch_test():
     print("====================================================================\n")
 
     # Load agent modules
-    finn_agent_mod = load_module("finn_agent_mod", "/path/to/AIMAOS/Finn-AI/core/agent.py")
-    kai_agent_mod = load_module("kai_agent_mod", "/path/to/AIMAOS/Kai-AI/core/agent.py")
-    marley_agent_mod = load_module("marley_agent_mod", "/path/to/AIMAOS/Marley-AI/core/agent.py")
-    quinn_agent_mod = load_module("quinn_agent_mod", "/path/to/AIMAOS/Quinn-AI/core/agent.py")
+    finn_agent_mod = load_module("finn_agent_mod", os.path.join(AIMAOS_ROOT, "Finn-AI/core/agent.py"))
+    kai_agent_mod = load_module("kai_agent_mod", os.path.join(AIMAOS_ROOT, "Kai-AI/core/agent.py"))
+    marley_agent_mod = load_module("marley_agent_mod", os.path.join(AIMAOS_ROOT, "Marley-AI/core/agent.py"))
+    quinn_agent_mod = load_module("quinn_agent_mod", os.path.join(AIMAOS_ROOT, "Quinn-AI/core/agent.py"))
     
-    cmd_channel_mod = load_module("cmd_channel_mod", "/path/to/AIMAOS/Finn-AI/tools/commandeer_channel.py")
+    cmd_channel_mod = load_module("cmd_channel_mod", os.path.join(AIMAOS_ROOT, "Finn-AI/tools/commandeer_channel.py"))
 
     finn = finn_agent_mod.FinnAgent()
     kai = kai_agent_mod.KaiAgent()
@@ -36,11 +44,11 @@ def run_multi_county_dispatch_test():
     quinn = quinn_agent_mod.QuinnAgent()
 
     board = OfficeBoard()
-    templates_base = "/path/to/AIMAOS/Alix-AI/templates"
+    templates_base = os.path.join(AIMAOS_ROOT, "Alix-AI/templates")
 
     clients = [
         {
-            "name": "Alexander James Montgomery",
+            "name": "Alex Sample",
             "county": "Leon",
             "circuit": "2nd",
             "case_type": "Adult Name Change",
@@ -50,8 +58,8 @@ def run_multi_county_dispatch_test():
                 "county": "Leon",
                 "case_number": "2026-DR-002101",
                 "division": "Family Law",
-                "client_name": "Alexander James Montgomery",
-                "new_name": "Alexander Sterling",
+                "client_name": "Alex Sample",
+                "new_name": "Alex Newname",
                 "client_address": "1420 Timberlane Road, Tallahassee, FL 32312",
                 "client_phone": "(850) 555-0144",
                 "client_email": USER_EMAIL,
@@ -64,7 +72,7 @@ def run_multi_county_dispatch_test():
             ]
         },
         {
-            "name": "Sarah Jenkins",
+            "name": "Jamie Sample",
             "county": "Clay",
             "circuit": "4th",
             "case_type": "Guardianship of Minor Child Name Change",
@@ -74,9 +82,9 @@ def run_multi_county_dispatch_test():
                 "county": "Clay",
                 "case_number": "2026-DR-003420",
                 "division": "Family Law",
-                "parent_name": "Sarah Jenkins",
-                "child_name": "Jacob Jenkins",
-                "client_name": "Sarah Jenkins",
+                "parent_name": "Jamie Sample",
+                "child_name": "Jesse Sample",
+                "client_name": "Jamie Sample",
                 "client_address": "405 Walnut Street, Green Cove Springs, FL 32043",
                 "client_phone": "(904) 555-0198",
                 "client_email": USER_EMAIL
@@ -88,7 +96,7 @@ def run_multi_county_dispatch_test():
             ]
         },
         {
-            "name": "David and Elena Miller",
+            "name": "Pat and Sam Sample",
             "county": "Duval",
             "circuit": "4th",
             "case_type": "Dissolution of Marriage with Minor Children",
@@ -98,10 +106,10 @@ def run_multi_county_dispatch_test():
                 "county": "Duval",
                 "case_number": "2026-DR-008910",
                 "division": "Family Law",
-                "husband_name": "David Miller",
-                "wife_name": "Elena Miller",
-                "client_name": "David Miller",
-                "spouse_name": "Elena Miller",
+                "husband_name": "Pat Sample",
+                "wife_name": "Sam Sample",
+                "client_name": "Pat Sample",
+                "spouse_name": "Sam Sample",
                 "county": "Duval",
                 "client_address": "1200 Ocean Boulevard, Jacksonville, FL 32216",
                 "client_email": USER_EMAIL
@@ -130,7 +138,7 @@ def run_multi_county_dispatch_test():
 
         # 2. Form Generation
         generated_files = []
-        out_dir = f"/path/to/AIMAOS/Alix-AI/workspace/output/{c['name'].lower().replace(' ', '_')}/2026-07-27"
+        out_dir = f"{AIMAOS_ROOT}/Alix-AI/workspace/output/{c['name'].lower().replace(' ', '_')}/2026-07-27"
         os.makedirs(out_dir, exist_ok=True)
 
         for form_id in c["forms"]:
@@ -145,7 +153,7 @@ def run_multi_county_dispatch_test():
             generated_files.append(docx_out)
             print(f"  • Generated Court Form [{form_id}]: {docx_out}")
 
-        # 3. Commandeer Finn's Channel to send Email Package to helix.agi.system@gmail.com
+        # 3. Commandeer Finn's Channel to send Email Package to client@example.com
         email_body = f"""DEAR CLIENT / COUNSEL,
 
 Below is the completed legal filing package prepared by the AIMAOS Office Suite for {c['name']}.
@@ -177,7 +185,7 @@ Alix & Finn (AIMAOS Office Suite)
         dispatch_results.append((c['name'], len(generated_files), dispatch_res))
 
     print("\n====================================================================")
-    print("SUMMARY OF MULTI-COUNTY DISPATCHES TO helix.agi.system@gmail.com")
+    print("SUMMARY OF MULTI-COUNTY DISPATCHES TO client@example.com")
     print("====================================================================")
     for name, fcount, dres in dispatch_results:
         print(f"✅ Client '{name}': {fcount} forms generated & emailed to {USER_EMAIL}")

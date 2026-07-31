@@ -1,0 +1,13 @@
+name: Final Judgment of Change of Name Adult (Form 12.982b)
+description: Florida Supreme Court Approved Family Law Form 12.982(b) - Final Judgment
+  of Change of Name (Adult)
+fields:
+  client_name: Value for client name
+  new_name: Value for new name
+  county: Value for county
+  circuit_number: Value for circuit number
+  case_number: Value for case number
+  division: Auto-detected variable for division
+  date: Auto-detected variable for date
+default_format: docx
+last_reviewed_at: '2026-07-26T20:15:20.742217'

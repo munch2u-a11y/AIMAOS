@@ -1,0 +1,34 @@
+domains:
+  file_research:
+    description: Explore local directories, search for files, and read documents to gather the information needed
+      to plan.
+    tools:
+    - shared_tools/browse_files.py
+    - Alix-AI/tools/search_files.py
+    - Alix-AI/tools/list_files.py
+    - Alix-AI/tools/read_document.py
+  research:
+    description: Produce statutory research briefings for Florida legal matters.
+    tools:
+    - Quinn-AI/tools/research_brief.py
+  web_research:
+    description: Search and read the open web to answer questions the local file library can't.
+    tools:
+    - shared_tools/web_search.py
+    - shared_tools/web_fetch.py
+    - shared_tools/rss_feed_read.py
+seed_beliefs:
+- research_brief takes a topic and scope and writes a structured markdown brief into my reports workspace; the brief
+  cites statutes that must be verified before client use.
+- "When a research task is actually for a specific client's matter (not general legal research), pass\
+  \ client_name to research_brief so the brief files itself into that case's own folder (and its\
+  \ activity log) instead of sitting only in my own workspace where the case manager will never see\
+  \ it — that's the whole point of a shared record. Only my general, non-case-tied research stays\
+  \ in my own reports workspace."
+- Reading prior briefs in my reports folder avoids repeating research already done.
+- web_search works with no setup via a best-effort DuckDuckGo fallback, but that path is anti-bot-gated and can
+  fail intermittently; BRAVE_SEARCH_API_KEY or SERPAPI_KEY makes it reliable for real research work.
+- Follow a promising web_search result with web_fetch on its URL to read the full page rather than trusting the
+  snippet alone before citing it in a brief.
+- rss_feed_read is for monitoring a known feed URL over time, such as a court calendar or legal news source; use
+  web_search first to find the feed URL if it isn't already known.

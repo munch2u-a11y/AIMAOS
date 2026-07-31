@@ -1,0 +1,36 @@
+domains:
+  file_research:
+    description: Explore local directories, search for files, and read documents to gather the information needed
+      to plan.
+    tools:
+    - shared_tools/browse_files.py
+    - Alix-AI/tools/search_files.py
+    - Alix-AI/tools/list_files.py
+    - Alix-AI/tools/read_document.py
+  diagnostics:
+    description: Audit agent workspaces and synthesize operational health from real records.
+    tools:
+    - Zoe-AI/tools/system_diagnostics.py
+  tool_engineering:
+    description: 'Design new tool subagents for any office agent: schema, seed beliefs, and domain registration.'
+    tools:
+    - Zoe-AI/tools/design_tool_subagent.py
+    - shared_tools/list_tool_catalog.py
+    - shared_tools/install_catalog_tool.py
+  agent_engineering:
+    description: Clone new specialist agent workspaces when a workload needs a dedicated agent.
+    tools:
+    - Zoe-AI/tools/clone_agent.py
+seed_beliefs:
+- system_diagnostics reports per-workspace health computed from real checks, never assumed.
+- design_tool_subagent registers a new tool into a target agent's capabilities.yaml under a domain and seeds its
+  first how-to beliefs; the tool body may wrap a local command.
+- Before hand-authoring a new tool with design_tool_subagent, check list_tool_catalog first — most common office
+  tools (calendar, web, voice, CRM, billing, and more) already have a catalog entry with a ready-made schema, and
+  install_catalog_tool registers one onto any target agent in a single call.
+- install_catalog_tool needs only target_agent and the exact catalog tool_name from list_tool_catalog; it installs
+  the real module directly for 'implemented' entries, or a scaffold stub for 'scaffold' entries.
+- "A task asking for a new legal document TEMPLATE (a guardianship petition, a probate form) isn't mine —\
+  \ that's Alix's document-production work (docx + template.yaml under Alix-AI/templates/), not a tool\
+  \ subagent. My job is new CAPABILITIES (Python tools/schemas); if a task naming a missing template lands\
+  \ on me, it belongs with Alix instead."

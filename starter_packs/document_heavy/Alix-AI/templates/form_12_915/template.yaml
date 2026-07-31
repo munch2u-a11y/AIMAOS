@@ -1,0 +1,11 @@
+name: Designation of Current Mailing and E-Mail Address (Form 12.915)
+description: Florida Family Law Rules of Procedure Form 12.915 - Designation of Current
+  Mailing and E-Mail Address
+fields:
+  client_name: Value for client name
+  petitioner_name: Value for petitioner name
+  respondent_name: Value for respondent name
+  client_address: Value for client address
+  client_phone: Value for client phone
+  client_email: Value for client email
+default_format: docx

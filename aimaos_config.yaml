@@ -1,0 +1,49 @@
+llm:
+  backend: ollama
+  ollama_host: http://localhost:11434
+  default_model: qwen3.5:2b
+  temperature: 0.2
+  max_tokens: 1024
+agents:
+  Alix:
+    role: Document Production & Keeper Agent
+    model: qwen3.5:2b
+  Kai:
+    role: Digital Librarian & Task Archiver
+    model: qwen3.5:2b
+  Marley:
+    role: Office Manager & Priority Scheduler
+    model: qwen3.5:2b
+  Quinn:
+    role: Research & Legal Intelligence Reporter
+    model: qwen3.5:2b
+    research_model: gemma3:4b
+  Zoe:
+    role: DevOps Maintenance Engineer & Synthesizer
+    model: qwen3.5:2b
+  Finn:
+    role: Security Officer & Comms Gateway
+    model: qwen3.5:0.8b
+  Rae:
+    role: Agent Maker & Workflow Cloner
+    model: qwen3.5:2b
+  Ztestclone:
+    role: Throwaway Cloning Smoke Test
+    model: qwen3.5:2b
+office:
+  poll_interval_sec: 3.0
+  max_tool_turns: 4
+  delegation: true
+  task_lease_sec: 600
+  max_task_retries: 2
+  reflection_every_cycles: 12
+  injection_max_tokens: 400
+  idle_backoff_max_sec: 60.0
+email:
+  security_mode: READ_ONLY
+  approved_recipients: []
+  imap_server: imap.gmail.com
+  imap_port: 993
+  smtp_server: smtp.gmail.com
+  smtp_port: 587
+  check_interval_sec: 300

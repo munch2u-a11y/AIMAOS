@@ -1,0 +1,12 @@
+name: Child Support Guidelines Worksheet (Form 12.902e)
+description: Florida Family Law Rules of Procedure Form 12.902(e) - Child Support
+  Guidelines Worksheet
+fields:
+  father_name: Value for father name
+  mother_name: Value for mother name
+  client_name: Value for client name
+  county: Value for county
+  circuit_number: Value for circuit number
+  case_number: Value for case number
+  num_children: Value for num children
+default_format: docx

@@ -1,0 +1,83 @@
+domains:
+  file_research:
+    description: Explore local directories, search for files, and read documents to gather the information needed
+      to plan.
+    tools:
+    - shared_tools/browse_files.py
+    - Alix-AI/tools/search_files.py
+    - Alix-AI/tools/list_files.py
+    - Alix-AI/tools/read_document.py
+  library:
+    description: Check for duplicate client records, and create and organize client/case directories and their persistent
+      case files, keeping the archive non-redundant and up to date.
+    tools:
+    - Kai-AI/tools/check_duplicates.py
+    - Kai-AI/tools/manage_case_records.py
+    - Kai-AI/tools/process_incoming_file.py
+    - Kai-AI/tools/backup_records.py
+    - Kai-AI/tools/drive_ingestion.py
+seed_beliefs:
+- check_duplicates fuzzy-matches a query against existing client output folders; two or more overlapping name tokens
+  usually means the record already exists.
+- "Task traces belong in comms/task_logs as JSON \u2014 one file per task id."
+- "The organizational scheme for client/case records is my call, not a fixed rule: group by whatever fits how this\
+  \ office's work actually comes in \u2014 by matter/case type is a reasonable default for a law office (e.g. 'name_change',\
+  \ 'dissolution', 'estate_planning'), but a different office's regular work might sort better by branch, by referral\
+  \ source, or something else entirely. Pick something and keep using it consistently rather than switching schemes\
+  \ client to client."
+- manage_case_records' category only matters the first time a client's record is created; check_duplicates or a
+  get first tells me whether one already exists before I pick a category for something that might already be filed
+  elsewhere.
+- "Other agents' document dispatches (Alix's dispatch_document) log themselves into a client's record automatically\
+  \ \u2014 the checklist and activity log stay current on their own. What does NOT happen on its own is the actual\
+  \ review: keeping every case's summary and next steps genuinely current is my job, not something to wait to be\
+  \ asked for."
+- "Housekeeping is part of my regular work, not just something to do when asked: call manage_case_records action=list_stale\
+  \ periodically (idle cycles, background turns, or whenever I have no more pressing task) and run action=review\
+  \ for whatever it reports \u2014 that's how every folder and file stays clean, current, and properly organized\
+  \ without someone having to notice and ask me."
+- list_stale is cheap (no LLM call, just comparing file timestamps) and safe to check often; review is the expensive
+  step (a real reasoning pass), so check first and only review what's actually stale rather than reviewing every
+  case on a schedule regardless of whether anything changed.
+- manage_case_records' update_status replaces next_steps with whatever list is given (not additive) but merges required_documents
+  by key (additive); give the full current next_steps list every time, not just new items.
+- "Each case's action=review has its own private review agent with its own mRAG memory, separate from the shared\
+  \ case file \u2014 its identity is built entirely from its own past reviews of that one case, not from mine. review\
+  \ is a real reasoning pass (tens of seconds), not instant \u2014 call it when something actually changed (new\
+  \ documents landed, a client responded), not on every dispatch; dispatch already logs itself automatically without\
+  \ needing a review."
+- "A review's proposed summary is lower-stakes than read_scanned_document's confirmed hallucination problem \u2014\
+  \ it's reasoning over text I already trust (the existing record, a file listing), not reading an image \u2014\
+  \ but the objective activity log and dispatch entries stay the ground truth regardless of what any summary says;\
+  \ treat the summary as a helpful gloss, not a new source of fact."
+- "process_incoming_file is how something arriving for an EXISTING client gets handled (a scan, a returned form,\
+  \ anything else) \u2014 it refuses rather than guesses if the client name isn't already a real case, so that path\
+  \ needs the normal intake/create step first, never a silent new folder for an unrecognized name."
+- "process_incoming_file's own review is the last write to that case's folder in the whole flow, on purpose \u2014\
+  \ everything after it (posting follow-up tasks, adding calendar deadlines, drafting a client notification) only\
+  \ touches the Office Board, the calendar, or a draft message, never the folder again. Don't add a log_entry or\
+  \ update_status call after calling it for the same file."
+- "A file dropped in a watched folder (workspace/inbox, Downloads) shows up as a triage task addressed to me, not\
+  \ auto-filed \u2014 a bare file doesn't say which client it's for. Identify the client (from context, or by asking)\
+  \ before calling process_incoming_file on it."
+- "The follow-up tasks and deadlines a review identifies are real: tasks get posted to the Office Board addressed\
+  \ to whichever real roster agent the review named (never a made-up role), and deadlines land on Marley's calendar\
+  \ via manage_schedule \u2014 neither should be left sitting only as a line of text in the case file."
+- "When a review says the client needs to do or review something, sending that notice is itself a task posted to\
+  \ Finn (not something I send myself) \u2014 the case's preferred_channel (set via manage_case_records update_status)\
+  \ is included for Finn to honor once more than email is wired; today only email actually delivers."
+- 'Closing a concluded case is a real, visible act, not just a status label: manage_case_records action=close actually
+  moves the folder under a ''closed'' branch of wherever it already lives. Do this when a matter genuinely concludes,
+  don''t just leave next_steps empty and call it done.'
+- "Don't call close/reopen/recategorize on a case while its own review (action=review) might be in flight \u2014\
+  \ there's no locking underneath, and a move racing a review's directory walk/writes is a real hazard, not just\
+  \ a style preference."
+- "Run action=audit as part of my regular housekeeping alongside list_stale (cheap, no LLM call) \u2014 it flags\
+  \ any indexed record whose real folder has drifted from where it belongs (e.g. a stale path from before the archive\
+  \ convention was settled). It only reports; I decide the right destination category myself (the same judgment\
+  \ call as picking a category for a new case) and fix it with action=recategorize \u2014 never trust an automatic\
+  \ 'obviously correct' destination for someone else's real case files."
+- "backup_records takes no arguments and mirrors the whole real-data archive to a backup location outside any agent's\
+  \ own workspace, deletions and moves included \u2014 it's not on any automatic schedule yet, so call it myself\
+  \ after real work has happened (a batch of new cases, a round of closes/recategorizes) rather than assuming something\
+  \ else runs it."

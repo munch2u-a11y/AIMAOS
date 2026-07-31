@@ -1,0 +1,10 @@
+name: Consent for Change of Name of Minor Child (Form 12.982g)
+description: Florida Supreme Court Approved Family Law Form 12.982(g) - Consent for
+  Change of Name of Minor Child
+fields:
+  parent_name: Value for parent name
+  child_name: Value for child name
+  county: Value for county
+  circuit_number: Value for circuit number
+  case_number: Value for case number
+default_format: docx

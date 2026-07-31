@@ -1,0 +1,11 @@
+name: Petition for Change of Name Minor Child (Form 12.982f)
+description: Florida Supreme Court Approved Family Law Form 12.982(f) - Petition for
+  Change of Name (Minor Child)
+fields:
+  parent_name: Value for parent name
+  child_name: Value for child name
+  county: Value for county
+  circuit_number: Value for circuit number
+  case_number: Value for case number
+  child_dob: Value for child dob
+default_format: docx

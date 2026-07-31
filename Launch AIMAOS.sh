@@ -2,4 +2,8 @@
 echo "===================================================================="
 echo "LAUNCHING AIMAOS ALL-IN-ONE SYSTEM & DASHBOARD"
 echo "===================================================================="
-/path/to/user/Alix-AI/.venv/bin/python3 /path/to/AIMAOS/aimaos_ui.py
+cd "$(dirname "$0")"
+PY=".venv/bin/python3"
+[ -x "$PY" ] || PY="Alix-AI/.venv/bin/python3"
+[ -x "$PY" ] || PY="python3"
+"$PY" aimaos_ui.py

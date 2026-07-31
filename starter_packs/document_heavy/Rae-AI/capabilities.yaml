@@ -1,0 +1,21 @@
+domains:
+  file_research:
+    description: Explore local directories, search for files, and read documents to gather the information needed
+      to plan.
+    tools:
+    - shared_tools/browse_files.py
+    - Alix-AI/tools/search_files.py
+    - Alix-AI/tools/list_files.py
+    - Alix-AI/tools/read_document.py
+  agent_making:
+    description: Instantiate new specialist mini-agent workspaces with their own capabilities and belief stores.
+    tools:
+    - Rae-AI/tools/clone_agent.py
+    - shared_tools/list_tool_catalog.py
+    - shared_tools/install_catalog_tool.py
+seed_beliefs:
+- clone_agent creates a full agent workspace; new clones are born with file_research capability and an empty belief
+  store that grows from their own work.
+- A new specialist agent needs Zoe to design its domain tool subagents after cloning.
+- A freshly cloned agent can equip itself directly from the shared catalog too, using list_tool_catalog to find a
+  fitting tool then install_catalog_tool with the new agent's name — no need to wait on Zoe for common capabilities.

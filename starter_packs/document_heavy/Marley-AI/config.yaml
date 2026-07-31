@@ -1,0 +1,7 @@
+agent:
+  name: Marley
+  role: Scheduler & Communicator
+  model: qwen3.5:2b
+paths:
+  calendar: workspace/calendar
+  memory: workspace/.memory

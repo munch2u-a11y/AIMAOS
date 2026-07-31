@@ -1,0 +1,6 @@
+agent:
+  name: Rae
+  role: Agent Maker & Workflow Cloner
+  model: qwen3.5:2b
+paths:
+  memory: workspace/.memory

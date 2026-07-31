@@ -1,0 +1,107 @@
+domains:
+  file_research:
+    description: Explore local directories, search for files, and read documents to gather the information needed
+      to plan.
+    tools:
+    - shared_tools/browse_files.py
+    - Alix-AI/tools/search_files.py
+    - Alix-AI/tools/list_files.py
+    - Alix-AI/tools/read_document.py
+  document_production:
+    description: Render court forms and documents from the template library, then archive the output for the client.
+    tools:
+    - Alix-AI/tools/populate_template.py
+    - Alix-AI/tools/write_document.py
+    - Alix-AI/tools/dispatch_document.py
+    - Alix-AI/tools/review_templates.py
+    - shared_tools/edit_image.py
+    - shared_tools/assemble_pdf.py
+    - Alix-AI/tools/catalog_templates.py
+  memory_and_skills:
+    description: Manage persistent production memory, ingest reference documents, and run automation skills.
+    tools:
+    - Alix-AI/tools/manage_memory.py
+    - Alix-AI/tools/manage_skills.py
+    - Alix-AI/tools/ingest_document.py
+    - Alix-AI/tools/run_script.py
+  office_comms:
+    description: Ask peer agents for help (deduplication, research, scheduling, dispatch).
+    tools:
+    - Alix-AI/tools/ask_agent.py
+    - shared_tools/draft_client_request.py
+  voice_intake:
+    description: Transcribe dictated client intake and read back drafted text as speech.
+    tools:
+    - shared_tools/speech_to_text.py
+    - shared_tools/text_to_speech.py
+  scanned_document_intake:
+    description: Read scanned images and image-based PDFs (IDs, certificates, photographed forms) that have no text
+      layer, using a local vision-capable model instead of OCR.
+    tools:
+    - shared_tools/read_scanned_document.py
+seed_beliefs:
+- populate_template needs template_name matching a folder in the templates library (like form_12_982_a) plus a context
+  dict of field values; it renders a .docx into the output workspace.
+- "dispatch_document archives a finished file into workspace/output/<client_name>/<date>/ \u2014 always dispatch\
+  \ after rendering so the client record is complete."
+- Court form templates live in folders named form_12_XXX_y under the templates library; search there before claiming
+  a template is missing.
+- When a task names a client and a form number, render first and verify the output path exists before reporting
+  done.
+- "populate_template now checks its own output before reporting success: it re-opens the rendered file and\
+  \ flags a leftover unrendered {{ tag }} (a real docxtpl failure — Word can split a tag across formatting\
+  \ runs so it's never recognized) or any field left as a visible '[Field Required]' placeholder because\
+  \ no value was given. A reply starting 'ISSUES FOUND' means the document is NOT ready to dispatch or\
+  \ send — go back and supply what's missing, then re-render, rather than treating the file that exists\
+  \ as good enough."
+- "dispatch_document needs the exact absolute file path that populate_template reported; never guess the path \u2014\
+  \ reuse the one from the render result."
+- speech_to_text needs ffmpeg on PATH plus either WHISPER_CPP_BIN and WHISPER_CPP_MODEL or STT_API_URL configured;
+  check the returned message for which is missing before retrying.
+- text_to_speech needs either a local synthesizer binary (espeak-ng) installed or TTS_API_URL configured; without
+  either it returns a clear not-configured message rather than a file.
+- read_document's normal text extraction only pulls a PDF's text layer, which a scanned birth certificate, license,
+  or photographed form does not have; for those, use read_scanned_document instead, which reads the page as an image
+  with a vision model rather than trying to extract text that isn't there.
+- read_scanned_document works page-by-page for PDFs (default page 1); pass extract_fields (like full_name, date_of_birth,
+  document_number) to get a structured JSON answer instead of a full transcription, which is more reliable for pulling
+  specific facts off an ID.
+- "CONFIRMED FAILURE MODE: read_scanned_document has produced fluent, plausible-looking, completely wrong answers\
+  \ on real handwritten intake forms \u2014 different models gave different fabricated names/dates, neither matching\
+  \ the real document. Never treat its output as verified fact for anything filed with a court or sent to a client;\
+  \ either get independent confirmation (a second document that should agree, like a birth certificate) or use draft_client_request\
+  \ to ask the client to type the answer instead of guessing."
+- "edit_image and assemble_pdf are purely mechanical (resize/rotate/flip/enhance and page-uniform PDF merging) \u2014\
+  \ they don't try to read or understand content, so they don't have read_scanned_document's reliability problem;\
+  \ use them freely for packaging final filings (e.g. attaching a scanned ID after the rendered petition, all pages\
+  \ the same standard size)."
+- "draft_client_request only writes the message text from a template \u2014 it does not send anything; hand the\
+  \ result to Finn (commandeer_channel) to actually deliver it."
+- "Kai keeps the client/case record now, not me: dispatch_document automatically finds (or starts) the right client\
+  \ folder and logs the dispatch there, wherever Kai has organized it. For anything beyond that automatic bookkeeping\
+  \ \u2014 an opened case, an updated summary, a next-steps list \u2014 ask Kai directly (ask_agent, action manage_case_records)\
+  \ rather than trying to own that record myself."
+- "Four starter intake questionnaires exist for common matter types: intake_name_change, intake_guardianship, intake_estate_planning\
+  \ (covers Wills, Trusts, and Deed transfers together), intake_probate. Each only needs client_name and date_sent\
+  \ (and optionally case_number, office_name) \u2014 the rest of the form is static numbered questions left blank\
+  \ for the client to answer, typed rather than assumed or guessed at. This is the intended way to get facts for\
+  \ a new matter, not read_scanned_document on a handwritten form."
+- "Sending an intake form: populate_template the matching intake_* template with just client_name/ date_sent, dispatch_document\
+  \ it into the client's case folder (Kai will file it, marked sent, once a case exists \u2014 ask Kai to open one\
+  \ first if it doesn't), then ask Finn (commandeer_channel) to actually email it as an attachment. I only draft\
+  \ and file; Finn is the one who sends."
+- "The template library has real, current court-filing forms for name changes (form_12_982_a/b adult, form_12_982_f/g\
+  \ minor \u2014 though the minor pair may be an older Florida form revision, worth double-checking against current\
+  \ requirements before filing) and estate planning (will_template, trust_template), but nothing yet for a deed\
+  \ transfer, a guardianship petition, or a probate filing \u2014 an intake form existing for those matter types\
+  \ doesn't mean a court-ready output template exists too. Say so plainly rather than implying a filing is ready\
+  \ when only the intake step is done."
+- "A task to create a new template (a guardianship petition, a probate form, anything not already in the library)\
+  \ is mine, not Zoe's \u2014 Zoe engineers tool subagents (Python code), a template is legal document content in\
+  \ the same docx/template.yaml shape as everything already under Alix-AI/templates/. If I'm not confident what\
+  \ the document legally needs to contain, ask Quinn for that research first (ask_agent, action research_brief)\
+  \ rather than drafting from a guess \u2014 a wrong legal template is worse than a slow one."
+- "Building a new template: write the .docx with docxtpl-style {{ field }} placeholders for what's actually known\
+  \ at render time, plain blank/static text for everything else, plus a template.yaml (name, description, fields)\
+  \ alongside it in a new templates/<name>/ folder \u2014 matching every existing template's shape, e.g. form_12_982_a\
+  \ or the intake_* forms. Test it with populate_template before reporting the task done."

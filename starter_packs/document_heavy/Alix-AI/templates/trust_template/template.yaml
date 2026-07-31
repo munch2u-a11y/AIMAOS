@@ -1,0 +1,11 @@
+name: "Revocable Living Trust Template"
+description: "Revocable Living Trust agreement template for clients with minors or beneficiaries."
+fields:
+  client_name: "Full legal name of grantor/settlor"
+  spouse_name: "Spouse name"
+  county: "County of jurisdiction"
+  num_children: "Number of children"
+  children_names: "Names of children/beneficiaries"
+  client_address: "Full residential address"
+default_format: "docx"
+include_toc: true

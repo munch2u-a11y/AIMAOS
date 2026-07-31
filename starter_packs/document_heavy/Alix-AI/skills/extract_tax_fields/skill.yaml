@@ -1,0 +1,5 @@
+created: '2026-07-16'
+description: Extracts tax metadata fields from plain text intake forms.
+input: Plain text of intake form
+name: extract_tax_fields
+output: JSON containing client_name, ssn, filing_status, total_income

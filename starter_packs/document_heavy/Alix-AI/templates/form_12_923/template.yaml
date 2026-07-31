@@ -1,0 +1,13 @@
+name: Notice of Hearing (Form 12.923)
+description: Florida Family Law Rules of Procedure Form 12.923 - Notice of Hearing
+  (General Form)
+fields:
+  client_name: Value for client name
+  petitioner_name: Value for petitioner name
+  respondent_name: Value for respondent name
+  county: Value for county
+  circuit_number: Value for circuit number
+  case_number: Value for case number
+  hearing_date: Value for hearing date
+  hearing_time: Value for hearing time
+default_format: docx

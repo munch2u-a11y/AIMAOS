@@ -1,0 +1,12 @@
+name: Marital Settlement Agreement (Form 12.902f3)
+description: Florida Family Law Rules of Procedure Form 12.902(f)(3) - Marital Settlement
+  Agreement for Simplified Dissolution of Marriage
+fields:
+  husband_name: Value for husband name
+  wife_name: Value for wife name
+  client_name: Value for client name
+  spouse_name: Value for spouse name
+  county: Value for county
+  circuit_number: Value for circuit number
+  case_number: Value for case number
+default_format: docx

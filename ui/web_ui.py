@@ -1,12 +1,18 @@
 import os
+
+def _find_aimaos_root():
+    p = os.path.dirname(os.path.abspath(__file__))
+    while p != os.path.dirname(p) and not os.path.exists(os.path.join(p, "aimaos_config.yaml")):
+        p = os.path.dirname(p)
+    return p
+AIMAOS_ROOT = os.environ.get("AIMAOS_ROOT") or _find_aimaos_root()
 import sys
 import json
 import logging
 from http.server import HTTPServer, SimpleHTTPRequestHandler
 import importlib.util
 
-AIMAOS_ROOT = "/path/to/AIMAOS"
-sys.path.insert(0, os.path.join(AIMAOS_ROOT, "Alix-AI"))
+sys.path.insert(0, AIMAOS_ROOT)
 
 from core.comms.office_board import OfficeBoard
 
@@ -51,7 +57,7 @@ class AIMAOSHTTPHandler(SimpleHTTPRequestHandler):
             try:
                 data = json.loads(body)
                 user_msg = data.get("message", "")
-                sender = data.get("sender", "helix.agi.system@gmail.com")
+                sender = data.get("sender", "client@example.com")
                 
                 finn = load_finn()
                 response_text = finn.process_user_message(user_msg, sender=sender)
@@ -71,7 +77,7 @@ class AIMAOSHTTPHandler(SimpleHTTPRequestHandler):
             self.end_headers()
             self.wfile.write(json.dumps(reply_payload).encode("utf-8"))
         else:
-            self.send_error(444, "Not Found")
+            self.send_error(404, "Not Found")
 
 def start_server(port=8080):
     server_address = ("", port)

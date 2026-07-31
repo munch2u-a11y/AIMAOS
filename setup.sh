@@ -2,4 +2,8 @@
 echo "===================================================================="
 echo "LAUNCHING AIMAOS SETUP WIZARD"
 echo "===================================================================="
-/path/to/user/Alix-AI/.venv/bin/python3 /path/to/AIMAOS/setup.py
+cd "$(dirname "$0")"
+PY=".venv/bin/python3"
+[ -x "$PY" ] || PY="Alix-AI/.venv/bin/python3"
+[ -x "$PY" ] || PY="python3"
+"$PY" setup.py "$@"

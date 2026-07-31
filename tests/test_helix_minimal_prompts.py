@@ -1,9 +1,16 @@
 import os
+
+def _find_aimaos_root():
+    p = os.path.dirname(os.path.abspath(__file__))
+    while p != os.path.dirname(p) and not os.path.exists(os.path.join(p, "aimaos_config.yaml")):
+        p = os.path.dirname(p)
+    return p
+AIMAOS_ROOT = os.environ.get("AIMAOS_ROOT") or _find_aimaos_root()
 import sys
 import json
 import importlib.util
 
-sys.path.insert(0, "/path/to/AIMAOS/Alix-AI")
+sys.path.insert(0, AIMAOS_ROOT)
 from core.mrag_beliefs import AgentBeliefStore
 
 def load_module(mod_name, file_path):
@@ -20,7 +27,7 @@ def run_test():
 
     # 1. Test Setup Wizard Model-Agnostic Matrix
     print("--- 1. TESTING SETUP WIZARD MODEL-AGNOSTIC MATRIX ---")
-    setup_mod = load_module("setup_mod", "/path/to/AIMAOS/setup.py")
+    setup_mod = load_module("setup_mod", os.path.join(AIMAOS_ROOT, "setup.py"))
     setup_mod.run_diagnostics()
     setup_mod.configure_workspaces()
 
@@ -42,13 +49,30 @@ def run_test():
         assert "Core Belief:" in prompt
 
     # 3. Test Single-Thought Turn Loop Execution
+    #
+    # Post a small, self-contained task and execute THAT specific task rather
+    # than whatever happens to sit on the live board: picking up an arbitrary
+    # backlog item makes this suite non-deterministic and can run for tens of
+    # minutes on a big delegated task, which is a test-harness problem, not a
+    # system one.
     print("\n--- 3. TESTING SINGLE-THOUGHT TURN EXECUTION LOOP ---")
-    alix_mod = load_module("alix_mod", "/path/to/AIMAOS/Alix-AI/core/agent.py")
-    alix = alix_mod.AlixAgent()
-    alix_res = alix.execute_single_turn()
-    print("[Alix Single-Turn Result]:\n", alix_res)
+    from core.comms.office_board import OfficeBoard
+    board = OfficeBoard()
+    probe_task_id = board.post_task(
+        title="Self-test: confirm the templates library is reachable",
+        requester="test_helix_minimal_prompts",
+        target_agent="Alix",
+        priority="CRITICAL",
+        details={"instruction": "List the template library directory once and report what you found. "
+                                "Do not render or archive anything."})
 
-    marley_mod = load_module("marley_mod", "/path/to/AIMAOS/Marley-AI/core/agent.py")
+    alix_mod = load_module("alix_mod", os.path.join(AIMAOS_ROOT, "Alix-AI/core/agent.py"))
+    alix = alix_mod.AlixAgent()
+    alix_res = alix.execute_single_turn(task_id=probe_task_id)
+    print("[Alix Single-Turn Result]:\n", alix_res)
+    assert "Single-thought turn" in str(alix_res), "turn did not run to a reported outcome"
+
+    marley_mod = load_module("marley_mod", os.path.join(AIMAOS_ROOT, "Marley-AI/core/agent.py"))
     marley = marley_mod.MarleyAgent()
     marley_res = marley.execute_single_turn()
     print("\n[Marley Single-Turn Dispatch Result]:\n", marley_res)

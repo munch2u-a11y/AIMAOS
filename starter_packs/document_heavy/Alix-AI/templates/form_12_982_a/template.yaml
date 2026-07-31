@@ -1,0 +1,17 @@
+name: Petition for Change of Name Adult (Form 12.982a)
+description: Florida Supreme Court Approved Family Law Form 12.982(a) - Petition for
+  Change of Name (Adult)
+fields:
+  client_name: Value for client name
+  county: Value for county
+  circuit_number: Value for circuit number
+  case_number: Value for case number
+  client_address: Value for client address
+  client_phone: Value for client phone
+  date_of_birth: Value for date of birth
+  division: Auto-detected variable for division
+  client_email: Auto-detected variable for client email
+  client_city_state_zip: Auto-detected variable for client city state zip
+  new_name: Auto-detected variable for new name
+default_format: docx
+last_reviewed_at: '2026-07-26T20:15:20.736257'

@@ -1,0 +1,847 @@
+# AIMAOS Shared Tool Catalog
+#
+# Central reference for equipping any office agent with new capabilities —
+# built for Zoe (tool_engineering domain) and Rae (agent_making domain) to
+# consult when a task calls for a tool the target agent doesn't have yet.
+#
+# Browse it with shared_tools/list_tool_catalog.py (keyword/category search —
+# small local models should never have to load this whole file into context).
+# Install an entry onto an agent with shared_tools/install_catalog_tool.py,
+# which reads this file so the calling agent only has to name the tool and
+# the target agent, not invent a JSON schema from scratch.
+#
+# Entry fields:
+#   name                snake_case tool name, unique across the catalog
+#   category            groups entries for browsing; see `categories` below
+#   status              "implemented" — a working module in shared_tools/,
+#                       ready to register as-is once any listed credentials
+#                       are configured; or "scaffold" — schema + beliefs
+#                       only, install_catalog_tool.py generates a stub
+#                       ("NOT YET IMPLEMENTED") body for a developer or Zoe
+#                       to fill in, same as design_tool_subagent.py does.
+#   module              implemented tools only: absolute path to the shared
+#                       module (registered directly, same file, in every
+#                       target agent's capabilities.yaml — the browse_files
+#                       pattern).
+#   description         one sentence; becomes the tool's TOOL_DEFINITION
+#                       description.
+#   parameters          JSON-Schema "properties" object.
+#   required            list of required parameter names.
+#   suggested_domain    capability domain name to register the tool under.
+#   domain_description  used only if that domain doesn't exist yet on the
+#                       target agent.
+#   seed_beliefs        1-3 how-to-use beliefs seeded into the target's
+#                       belief store on install — the raw material the
+#                       ToolSubagent layer turns into that specialist's
+#                       system prompt.
+#   credentials_env     env vars the office must set to activate; empty list
+#                       if the tool needs none.
+
+categories:
+  calendar_scheduling: {label: "Calendar & Scheduling"}
+  web_research: {label: "Web Research & Browsing"}
+  voice_audio: {label: "Voice: TTS / STT"}
+  communication_messaging: {label: "Communication & Messaging"}
+  document_processing: {label: "Document Processing"}
+  crm_client_management: {label: "CRM & Client Management"}
+  finance_billing: {label: "Finance & Billing"}
+  e_signature_legal: {label: "E-Signature & Legal Filing"}
+  cloud_storage: {label: "Cloud Storage"}
+  maps_navigation: {label: "Maps & Navigation"}
+  productivity_utilities: {label: "Productivity Utilities"}
+  devops_system: {label: "DevOps & System"}
+  data_analysis: {label: "Data Analysis"}
+  image_media: {label: "Image & Media"}
+  social_research: {label: "Social & News Monitoring"}
+
+tools:
+
+  # ---------------------------------------------------------- implemented
+  - name: google_calendar
+    category: calendar_scheduling
+    status: implemented
+    module: shared_tools/google_calendar.py
+    description: Lists, creates, updates, or deletes events on the connected Google Calendar.
+    parameters:
+      action: {type: string, enum: [list_events, create_event, update_event, delete_event]}
+      summary: {type: string, description: "Event title."}
+      description: {type: string, description: "Event notes."}
+      start_datetime: {type: string, description: "ISO 8601 start time."}
+      end_datetime: {type: string, description: "ISO 8601 end time."}
+      timezone: {type: string, description: "IANA timezone name."}
+      attendees: {type: array, items: {type: string}}
+      event_id: {type: string}
+      time_min: {type: string}
+      time_max: {type: string}
+      max_results: {type: integer}
+    required: [action]
+    suggested_domain: calendar
+    domain_description: "Manage the office Google Calendar: hearings, deadlines, and appointments."
+    seed_beliefs:
+      - "google_calendar needs GOOGLE_CALENDAR_ACCESS_TOKEN set in the environment before any call will work; if a call fails with 'not connected', that's a setup gap to flag, not a retry-worthy error."
+      - "create_event needs summary and start_datetime at minimum; end_datetime defaults to start + 1 hour if omitted."
+    credentials_env: [GOOGLE_CALENDAR_ACCESS_TOKEN, GOOGLE_CALENDAR_ID]
+
+  - name: web_search
+    category: web_research
+    status: implemented
+    module: shared_tools/web_search.py
+    description: Searches the public web and returns titles, URLs, and snippets for a query.
+    parameters:
+      query: {type: string}
+      max_results: {type: integer}
+    required: [query]
+    suggested_domain: web_research
+    domain_description: "Search and read the open web to answer questions the local file library can't."
+    seed_beliefs:
+      - "web_search works with no setup via a best-effort DuckDuckGo fallback, but that path is anti-bot-gated and can fail intermittently; BRAVE_SEARCH_API_KEY or SERPAPI_KEY makes it reliable."
+      - "Follow a promising web_search result with web_fetch on its URL to read the actual page instead of trusting the snippet alone."
+    credentials_env: [BRAVE_SEARCH_API_KEY, SERPAPI_KEY]
+
+  - name: web_fetch
+    category: web_research
+    status: implemented
+    module: shared_tools/web_fetch.py
+    description: Fetches a web page by URL and returns its readable text with HTML stripped out.
+    parameters:
+      url: {type: string}
+      max_chars: {type: integer}
+    required: [url]
+    suggested_domain: web_research
+    domain_description: "Search and read the open web to answer questions the local file library can't."
+    seed_beliefs:
+      - "web_fetch has no JS renderer; JS-heavy pages come back thin. If that happens, look for the page's underlying data/API URL instead."
+    credentials_env: []
+
+  - name: text_to_speech
+    category: voice_audio
+    status: implemented
+    module: shared_tools/text_to_speech.py
+    description: Synthesizes speech audio from text and writes it to a .wav file.
+    parameters:
+      text: {type: string}
+      output_path: {type: string}
+      voice: {type: string}
+    required: [text]
+    suggested_domain: voice_intake
+    domain_description: "Transcribe dictated client intake and read back drafted text as speech."
+    seed_beliefs:
+      - "text_to_speech needs either a local synthesizer binary (espeak-ng) installed or TTS_API_URL configured; without either it returns a clear not-configured message rather than a file."
+    credentials_env: [TTS_API_URL, TTS_API_KEY]
+
+  - name: speech_to_text
+    category: voice_audio
+    status: implemented
+    module: shared_tools/speech_to_text.py
+    description: Transcribes an audio file to text.
+    parameters:
+      audio_path: {type: string}
+    required: [audio_path]
+    suggested_domain: voice_intake
+    domain_description: "Transcribe dictated client intake and read back drafted text as speech."
+    seed_beliefs:
+      - "speech_to_text needs ffmpeg on PATH plus either WHISPER_CPP_BIN+WHISPER_CPP_MODEL or STT_API_URL configured; check the returned message for which is missing before retrying."
+    credentials_env: [WHISPER_CPP_BIN, WHISPER_CPP_MODEL, STT_API_URL, STT_API_KEY]
+
+  - name: calculator
+    category: productivity_utilities
+    status: implemented
+    module: shared_tools/calculator.py
+    description: Evaluates an arithmetic expression and returns the numeric result.
+    parameters:
+      expression: {type: string}
+    required: [expression]
+    suggested_domain: office_utilities
+    domain_description: "Everyday math, unit, and timezone conversions for office work."
+    seed_beliefs:
+      - "calculator only accepts arithmetic and the functions sqrt/abs/round/min/max/floor/ceil/log/sin/cos/tan — no variable names beyond pi and e."
+    credentials_env: []
+
+  - name: unit_converter
+    category: productivity_utilities
+    status: implemented
+    module: shared_tools/unit_converter.py
+    description: Converts a numeric value between units of length, mass, volume, time, or temperature.
+    parameters:
+      value: {type: number}
+      from_unit: {type: string}
+      to_unit: {type: string}
+    required: [value, from_unit, to_unit]
+    suggested_domain: office_utilities
+    domain_description: "Everyday math, unit, and timezone conversions for office work."
+    seed_beliefs:
+      - "unit_converter needs from_unit and to_unit in the same category (both length, both mass, etc.); mixing categories returns an error listing supported units."
+    credentials_env: []
+
+  - name: timezone_convert
+    category: productivity_utilities
+    status: implemented
+    module: shared_tools/timezone_convert.py
+    description: Converts a datetime from one IANA timezone to another.
+    parameters:
+      datetime_str: {type: string}
+      from_tz: {type: string}
+      to_tz: {type: string}
+    required: [datetime_str, from_tz, to_tz]
+    suggested_domain: office_utilities
+    domain_description: "Everyday math, unit, and timezone conversions for office work."
+    seed_beliefs:
+      - "timezone_convert wants full IANA names like 'America/New_York', not abbreviations like 'EST'; pass 'now' as datetime_str for the current time."
+    credentials_env: []
+
+  - name: rss_feed_read
+    category: social_research
+    status: implemented
+    module: shared_tools/rss_feed_read.py
+    description: Fetches an RSS or Atom feed URL and returns the latest item titles, links, and dates.
+    parameters:
+      feed_url: {type: string}
+      max_items: {type: integer}
+    required: [feed_url]
+    suggested_domain: web_research
+    domain_description: "Search and read the open web to answer questions the local file library can't."
+    seed_beliefs:
+      - "rss_feed_read is for monitoring a known feed URL over time (court calendars, legal news); use web_search first to find the feed URL if it isn't known yet."
+    credentials_env: []
+
+  # -------------------------------------------------------------- scaffold
+  - name: find_free_time
+    category: calendar_scheduling
+    status: scaffold
+    description: Given attendees and a duration, finds open meeting slots across their connected calendars.
+    parameters:
+      attendees: {type: array, items: {type: string}}
+      duration_minutes: {type: integer}
+      earliest: {type: string}
+      latest: {type: string}
+    required: [attendees, duration_minutes]
+    suggested_domain: calendar
+    domain_description: "Manage the office Google Calendar: hearings, deadlines, and appointments."
+    seed_beliefs:
+      - "find_free_time needs each attendee's calendar already connected via google_calendar before it can compute overlap."
+    credentials_env: [GOOGLE_CALENDAR_ACCESS_TOKEN]
+
+  - name: set_reminder
+    category: calendar_scheduling
+    status: scaffold
+    description: Schedules a one-time reminder that posts a task back to the Office Board at a future time.
+    parameters:
+      remind_at: {type: string, description: "ISO 8601 datetime."}
+      message: {type: string}
+      target_agent: {type: string}
+    required: [remind_at, message]
+    suggested_domain: calendar
+    domain_description: "Manage the office Google Calendar: hearings, deadlines, and appointments."
+    seed_beliefs: []
+    credentials_env: []
+
+  - name: meeting_link_create
+    category: calendar_scheduling
+    status: scaffold
+    description: Creates a Zoom or Google Meet video conferencing link for a scheduled meeting.
+    parameters:
+      title: {type: string}
+      start_datetime: {type: string}
+      duration_minutes: {type: integer}
+      provider: {type: string, enum: [zoom, google_meet]}
+    required: [title, start_datetime]
+    suggested_domain: calendar
+    domain_description: "Manage the office Google Calendar: hearings, deadlines, and appointments."
+    seed_beliefs: []
+    credentials_env: [ZOOM_API_KEY, ZOOM_API_SECRET]
+
+  - name: wikipedia_lookup
+    category: web_research
+    status: scaffold
+    description: Looks up a topic on Wikipedia and returns a summary via the public MediaWiki API (no key needed).
+    parameters:
+      topic: {type: string}
+    required: [topic]
+    suggested_domain: web_research
+    domain_description: "Search and read the open web to answer questions the local file library can't."
+    seed_beliefs:
+      - "wikipedia_lookup calls en.wikipedia.org/api/rest_v1/page/summary/<topic> directly; no API key needed, but topic must match a real page title closely."
+    credentials_env: []
+
+  - name: news_headlines
+    category: web_research
+    status: scaffold
+    description: Fetches current top news headlines for a topic or category from a news API.
+    parameters:
+      query: {type: string}
+      category: {type: string}
+      max_results: {type: integer}
+    required: []
+    suggested_domain: web_research
+    domain_description: "Search and read the open web to answer questions the local file library can't."
+    seed_beliefs: []
+    credentials_env: [NEWSAPI_KEY]
+
+  - name: audio_transcript_summarize
+    category: voice_audio
+    status: scaffold
+    description: Runs speech_to_text on a recording, then summarizes the transcript into structured notes via the local LLM.
+    parameters:
+      audio_path: {type: string}
+      summary_style: {type: string, enum: [meeting_minutes, client_intake, general]}
+    required: [audio_path]
+    suggested_domain: voice_intake
+    domain_description: "Transcribe dictated client intake and read back drafted text as speech."
+    seed_beliefs:
+      - "audio_transcript_summarize is a compound tool: it depends on speech_to_text being configured first."
+    credentials_env: []
+
+  - name: send_email
+    category: communication_messaging
+    status: scaffold
+    description: Sends an email via SMTP on the office's connected mailbox.
+    parameters:
+      to: {type: array, items: {type: string}}
+      subject: {type: string}
+      body: {type: string}
+      cc: {type: array, items: {type: string}}
+      attachments: {type: array, items: {type: string}, description: "Absolute file paths."}
+    required: [to, subject, body]
+    suggested_domain: gateway
+    domain_description: "Triage incoming messages, check office status, and dispatch outbound packages for peers."
+    seed_beliefs:
+      - "send_email needs SMTP credentials configured before it does anything beyond logging; check commandeer_channel's log first — actual dispatch only fires when explicitly enabled."
+    credentials_env: [SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASSWORD]
+
+  - name: send_sms
+    category: communication_messaging
+    status: scaffold
+    description: Sends an SMS text message via Twilio.
+    parameters:
+      to_number: {type: string}
+      message: {type: string}
+    required: [to_number, message]
+    suggested_domain: gateway
+    domain_description: "Triage incoming messages, check office status, and dispatch outbound packages for peers."
+    seed_beliefs: []
+    credentials_env: [TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, TWILIO_FROM_NUMBER]
+
+  - name: make_phone_call
+    category: communication_messaging
+    status: scaffold
+    description: Places an outbound automated phone call with a spoken message via Twilio Voice.
+    parameters:
+      to_number: {type: string}
+      message: {type: string}
+    required: [to_number, message]
+    suggested_domain: gateway
+    domain_description: "Triage incoming messages, check office status, and dispatch outbound packages for peers."
+    seed_beliefs: []
+    credentials_env: [TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, TWILIO_FROM_NUMBER]
+
+  - name: send_slack_message
+    category: communication_messaging
+    status: scaffold
+    description: Posts a message to a Slack channel via an incoming webhook or the Slack Web API.
+    parameters:
+      channel: {type: string}
+      text: {type: string}
+    required: [channel, text]
+    suggested_domain: gateway
+    domain_description: "Triage incoming messages, check office status, and dispatch outbound packages for peers."
+    seed_beliefs: []
+    credentials_env: [SLACK_BOT_TOKEN]
+
+  - name: send_telegram_message
+    category: communication_messaging
+    status: scaffold
+    description: Sends a message to a Telegram chat via the Bot API.
+    parameters:
+      chat_id: {type: string}
+      text: {type: string}
+    required: [chat_id, text]
+    suggested_domain: gateway
+    domain_description: "Triage incoming messages, check office status, and dispatch outbound packages for peers."
+    seed_beliefs: []
+    credentials_env: [TELEGRAM_BOT_TOKEN]
+
+  - name: draft_client_request
+    category: communication_messaging
+    status: implemented
+    module: shared_tools/draft_client_request.py
+    description: Drafts a professional message asking a client to confirm or provide specific
+      information in writing (typed) — e.g. when a scanned or handwritten document couldn't be
+      reliably read. Returns draft text only, does not send anything.
+    parameters:
+      client_name: {type: string}
+      case_context: {type: string}
+      needed_fields: {type: array, items: {type: string}}
+      reason: {type: string}
+    required: [client_name, case_context, needed_fields]
+    suggested_domain: office_comms
+    domain_description: "Ask peer agents for help (deduplication, research, scheduling, dispatch)."
+    seed_beliefs:
+      - "draft_client_request is template-based, not model-generated — deliberately, so it can't introduce its own fabrication right after a document-reading step that might have. It only writes text; hand the result to Finn's commandeer_channel to actually send it."
+    credentials_env: []
+
+  - name: convert_docx_to_pdf
+    category: document_processing
+    status: scaffold
+    description: Converts a .docx file to .pdf using a headless LibreOffice conversion.
+    parameters:
+      docx_path: {type: string}
+      output_dir: {type: string}
+    required: [docx_path]
+    suggested_domain: document_production
+    domain_description: "Render court forms and documents from the template library, then archive the output for the client."
+    seed_beliefs:
+      - "convert_docx_to_pdf shells out to libreoffice --headless --convert-to pdf; it needs libreoffice installed on the host."
+    credentials_env: []
+
+  - name: ocr_image_to_text
+    category: document_processing
+    status: scaffold
+    description: Extracts text from a scanned image or photo using traditional OCR (Tesseract).
+    parameters:
+      image_path: {type: string}
+    required: [image_path]
+    suggested_domain: document_production
+    domain_description: "Render court forms and documents from the template library, then archive the output for the client."
+    seed_beliefs:
+      - "ocr_image_to_text needs the tesseract binary and pytesseract installed (neither is in this offline venv by default); read_scanned_document is the working alternative that needs no extra install — prefer it unless a specific reason favors traditional OCR."
+    credentials_env: []
+
+  - name: read_scanned_document
+    category: document_processing
+    status: implemented
+    module: shared_tools/read_scanned_document.py
+    description: Reads a scanned image or image-based PDF page using a local vision-capable model (no
+      OCR library needed) and returns a transcription or specific extracted fields.
+    parameters:
+      file_path: {type: string}
+      page: {type: integer}
+      extract_fields: {type: array, items: {type: string}}
+      instructions: {type: string}
+    required: [file_path]
+    suggested_domain: scanned_document_intake
+    domain_description: "Read scanned images and image-based PDFs (IDs, certificates, photographed forms) that have no text layer, using a local vision-capable model instead of OCR."
+    seed_beliefs:
+      - "read_scanned_document uses gemma3:4b (confirmed vision-capable via `ollama show`) by default, overridable with the VISION_MODEL env var; pass extract_fields for structured JSON output instead of a full transcription when pulling specific facts off an ID or certificate."
+      - "For a PDF, read_scanned_document renders one page at a time (default page 1) via PyMuPDF, already installed; call it again with a different page number for multi-page documents."
+    credentials_env: []
+
+  - name: assemble_pdf
+    category: document_processing
+    status: implemented
+    module: shared_tools/assemble_pdf.py
+    description: Combines multiple PDFs and/or images into one final PDF, in order, with every page
+      resized to a uniform standard page size (letter by default).
+    parameters:
+      source_files: {type: array, items: {type: string}}
+      output_path: {type: string}
+      page_size: {type: string, enum: [letter, legal, a4]}
+    required: [source_files, output_path]
+    suggested_domain: document_production
+    domain_description: "Render court forms and documents from the template library, then archive the output for the client."
+    seed_beliefs:
+      - "assemble_pdf is purely mechanical (page placement and scaling, via PyMuPDF) — it never reads or interprets content, so it doesn't share read_scanned_document's reliability problem; use it to package a rendered document together with scanned attachments (an ID, a certificate) into one filing-ready PDF."
+    credentials_env: []
+
+  - name: split_pdf
+    category: document_processing
+    status: scaffold
+    description: Splits a PDF into individual page files or a specified page range.
+    parameters:
+      pdf_path: {type: string}
+      page_range: {type: string, description: "e.g. '1-3' or '5'."}
+      output_dir: {type: string}
+    required: [pdf_path]
+    suggested_domain: document_production
+    domain_description: "Render court forms and documents from the template library, then archive the output for the client."
+    seed_beliefs: []
+    credentials_env: []
+
+  - name: translate_text
+    category: document_processing
+    status: scaffold
+    description: Translates text between languages via a translation API.
+    parameters:
+      text: {type: string}
+      source_lang: {type: string}
+      target_lang: {type: string}
+    required: [text, target_lang]
+    suggested_domain: document_production
+    domain_description: "Render court forms and documents from the template library, then archive the output for the client."
+    seed_beliefs: []
+    credentials_env: [TRANSLATE_API_KEY]
+
+  - name: redact_pii
+    category: document_processing
+    status: scaffold
+    description: Finds and redacts SSNs, phone numbers, and email addresses in a text document.
+    parameters:
+      text: {type: string}
+      redact_types: {type: array, items: {type: string, enum: [ssn, phone, email]}}
+    required: [text]
+    suggested_domain: document_production
+    domain_description: "Render court forms and documents from the template library, then archive the output for the client."
+    seed_beliefs:
+      - "redact_pii is a pure regex pass — no external service needed — so it should be one of the easier scaffolds to implement fully."
+    credentials_env: []
+
+  - name: crm_create_contact
+    category: crm_client_management
+    status: scaffold
+    description: Creates a new contact/client record in the connected CRM.
+    parameters:
+      full_name: {type: string}
+      email: {type: string}
+      phone: {type: string}
+      notes: {type: string}
+    required: [full_name]
+    suggested_domain: client_records
+    domain_description: "Track client contact records and interaction history in the connected CRM."
+    seed_beliefs: []
+    credentials_env: [CRM_API_URL, CRM_API_KEY]
+
+  - name: crm_lookup_client
+    category: crm_client_management
+    status: scaffold
+    description: Looks up a client record in the connected CRM by name or email.
+    parameters:
+      query: {type: string}
+    required: [query]
+    suggested_domain: client_records
+    domain_description: "Track client contact records and interaction history in the connected CRM."
+    seed_beliefs: []
+    credentials_env: [CRM_API_URL, CRM_API_KEY]
+
+  - name: crm_log_interaction
+    category: crm_client_management
+    status: scaffold
+    description: Logs a contact interaction (call, email, meeting) against a client record in the CRM.
+    parameters:
+      client_id: {type: string}
+      interaction_type: {type: string, enum: [call, email, meeting, note]}
+      summary: {type: string}
+    required: [client_id, interaction_type, summary]
+    suggested_domain: client_records
+    domain_description: "Track client contact records and interaction history in the connected CRM."
+    seed_beliefs: []
+    credentials_env: [CRM_API_URL, CRM_API_KEY]
+
+  - name: create_invoice
+    category: finance_billing
+    status: scaffold
+    description: Creates a client invoice in the connected billing system.
+    parameters:
+      client_name: {type: string}
+      line_items: {type: array, items: {type: object}}
+      due_date: {type: string}
+    required: [client_name, line_items]
+    suggested_domain: billing
+    domain_description: "Track invoices, expenses, and currency conversions for office finances."
+    seed_beliefs: []
+    credentials_env: [BILLING_API_URL, BILLING_API_KEY]
+
+  - name: track_expense
+    category: finance_billing
+    status: scaffold
+    description: Records a business expense with amount, category, and client billing code.
+    parameters:
+      amount: {type: number}
+      category: {type: string}
+      client_name: {type: string}
+      note: {type: string}
+    required: [amount, category]
+    suggested_domain: billing
+    domain_description: "Track invoices, expenses, and currency conversions for office finances."
+    seed_beliefs: []
+    credentials_env: []
+
+  - name: currency_convert
+    category: finance_billing
+    status: scaffold
+    description: Converts an amount between currencies using current exchange rates.
+    parameters:
+      amount: {type: number}
+      from_currency: {type: string}
+      to_currency: {type: string}
+    required: [amount, from_currency, to_currency]
+    suggested_domain: billing
+    domain_description: "Track invoices, expenses, and currency conversions for office finances."
+    seed_beliefs:
+      - "currency_convert can use a free no-key rate API (e.g. exchangerate.host); double check the rate's date since these fluctuate."
+    credentials_env: []
+
+  - name: request_esignature
+    category: e_signature_legal
+    status: scaffold
+    description: Sends a document out for e-signature via DocuSign or HelloSign and returns the envelope id.
+    parameters:
+      document_path: {type: string}
+      signer_name: {type: string}
+      signer_email: {type: string}
+    required: [document_path, signer_name, signer_email]
+    suggested_domain: esignature
+    domain_description: "Send documents for e-signature and check their status."
+    seed_beliefs: []
+    credentials_env: [DOCUSIGN_API_KEY, DOCUSIGN_ACCOUNT_ID]
+
+  - name: esignature_status_check
+    category: e_signature_legal
+    status: scaffold
+    description: Checks the signing status of a previously sent e-signature envelope.
+    parameters:
+      envelope_id: {type: string}
+    required: [envelope_id]
+    suggested_domain: esignature
+    domain_description: "Send documents for e-signature and check their status."
+    seed_beliefs: []
+    credentials_env: [DOCUSIGN_API_KEY, DOCUSIGN_ACCOUNT_ID]
+
+  - name: court_efiling_submit
+    category: e_signature_legal
+    status: scaffold
+    description: Submits a completed court form package to a state e-filing portal.
+    parameters:
+      case_number: {type: string}
+      county: {type: string}
+      documents: {type: array, items: {type: string}}
+    required: [case_number, county, documents]
+    suggested_domain: esignature
+    domain_description: "Send documents for e-signature and check their status."
+    seed_beliefs:
+      - "court_efiling_submit is jurisdiction-specific and high-stakes (real court filing); it must never run without an explicit human go-ahead recorded in the task details."
+    credentials_env: [EFILING_PORTAL_API_KEY]
+
+  - name: google_drive_upload
+    category: cloud_storage
+    status: scaffold
+    description: Uploads a local file to a folder in the connected Google Drive.
+    parameters:
+      file_path: {type: string}
+      drive_folder_id: {type: string}
+    required: [file_path]
+    suggested_domain: cloud_storage
+    domain_description: "Back up and retrieve client files from connected cloud storage."
+    seed_beliefs: []
+    credentials_env: [GOOGLE_DRIVE_ACCESS_TOKEN]
+
+  - name: google_drive_search
+    category: cloud_storage
+    status: scaffold
+    description: Searches for files in the connected Google Drive by name or content.
+    parameters:
+      query: {type: string}
+    required: [query]
+    suggested_domain: cloud_storage
+    domain_description: "Back up and retrieve client files from connected cloud storage."
+    seed_beliefs: []
+    credentials_env: [GOOGLE_DRIVE_ACCESS_TOKEN]
+
+  - name: dropbox_upload
+    category: cloud_storage
+    status: scaffold
+    description: Uploads a local file to the connected Dropbox account.
+    parameters:
+      file_path: {type: string}
+      dropbox_path: {type: string}
+    required: [file_path, dropbox_path]
+    suggested_domain: cloud_storage
+    domain_description: "Back up and retrieve client files from connected cloud storage."
+    seed_beliefs: []
+    credentials_env: [DROPBOX_ACCESS_TOKEN]
+
+  - name: geocode_address
+    category: maps_navigation
+    status: scaffold
+    description: Converts a street address into latitude/longitude coordinates.
+    parameters:
+      address: {type: string}
+    required: [address]
+    suggested_domain: maps
+    domain_description: "Look up addresses, directions, and travel distances."
+    seed_beliefs: []
+    credentials_env: [GOOGLE_MAPS_API_KEY]
+
+  - name: get_directions
+    category: maps_navigation
+    status: scaffold
+    description: Returns turn-by-turn directions and travel time between two addresses.
+    parameters:
+      origin: {type: string}
+      destination: {type: string}
+      mode: {type: string, enum: [driving, walking, transit]}
+    required: [origin, destination]
+    suggested_domain: maps
+    domain_description: "Look up addresses, directions, and travel distances."
+    seed_beliefs: []
+    credentials_env: [GOOGLE_MAPS_API_KEY]
+
+  - name: weather_lookup
+    category: productivity_utilities
+    status: scaffold
+    description: Returns current conditions and short-range forecast for a location.
+    parameters:
+      location: {type: string}
+    required: [location]
+    suggested_domain: office_utilities
+    domain_description: "Everyday math, unit, and timezone conversions for office work."
+    seed_beliefs: []
+    credentials_env: [OPENWEATHER_API_KEY]
+
+  - name: qr_code_generate
+    category: productivity_utilities
+    status: scaffold
+    description: Generates a QR code image encoding the given text or URL.
+    parameters:
+      data: {type: string}
+      output_path: {type: string}
+    required: [data]
+    suggested_domain: office_utilities
+    domain_description: "Everyday math, unit, and timezone conversions for office work."
+    seed_beliefs:
+      - "qr_code_generate needs the `qrcode` pip package; check it's installed in the agent's venv before assuming this works."
+    credentials_env: []
+
+  - name: git_commit_and_push
+    category: devops_system
+    status: scaffold
+    description: Stages, commits, and pushes changes in a git repository.
+    parameters:
+      repo_path: {type: string}
+      message: {type: string}
+      branch: {type: string}
+    required: [repo_path, message]
+    suggested_domain: tool_engineering
+    domain_description: "Design new tool subagents for any office agent: schema, seed beliefs, and domain registration."
+    seed_beliefs:
+      - "git_commit_and_push is a real push to shared history; it must never run without explicit confirmation in the task details, and never with --force."
+    credentials_env: []
+
+  - name: check_service_health
+    category: devops_system
+    status: scaffold
+    description: Pings a URL or local port and reports whether the service is responding.
+    parameters:
+      target: {type: string, description: "URL or host:port to check."}
+    required: [target]
+    suggested_domain: diagnostics
+    domain_description: "Audit agent workspaces and synthesize operational health from real records."
+    seed_beliefs: []
+    credentials_env: []
+
+  - name: csv_summarize
+    category: data_analysis
+    status: scaffold
+    description: Reads a CSV file and returns row/column counts, column types, and basic numeric stats.
+    parameters:
+      csv_path: {type: string}
+    required: [csv_path]
+    suggested_domain: office_utilities
+    domain_description: "Everyday math, unit, and timezone conversions for office work."
+    seed_beliefs:
+      - "csv_summarize only needs stdlib csv + statistics — no extra package — so it's a good next one to fully implement."
+    credentials_env: []
+
+  - name: generate_chart
+    category: data_analysis
+    status: scaffold
+    description: Renders a bar/line/pie chart from tabular data to a PNG file.
+    parameters:
+      data: {type: object}
+      chart_type: {type: string, enum: [bar, line, pie]}
+      output_path: {type: string}
+    required: [data, chart_type]
+    suggested_domain: office_utilities
+    domain_description: "Everyday math, unit, and timezone conversions for office work."
+    seed_beliefs:
+      - "generate_chart needs matplotlib installed; not present by default in this offline venv."
+    credentials_env: []
+
+  - name: spreadsheet_query
+    category: data_analysis
+    status: scaffold
+    description: Reads a range or filtered rows out of an Excel workbook.
+    parameters:
+      xlsx_path: {type: string}
+      sheet_name: {type: string}
+      filter_expr: {type: string}
+    required: [xlsx_path]
+    suggested_domain: office_utilities
+    domain_description: "Everyday math, unit, and timezone conversions for office work."
+    seed_beliefs:
+      - "spreadsheet_query needs openpyxl installed; not present by default in this offline venv."
+    credentials_env: []
+
+  - name: image_analyze_ocr
+    category: image_media
+    status: scaffold
+    description: Describes the contents of an image and extracts any visible text.
+    parameters:
+      image_path: {type: string}
+    required: [image_path]
+    suggested_domain: document_production
+    domain_description: "Render court forms and documents from the template library, then archive the output for the client."
+    seed_beliefs: []
+    credentials_env: []
+
+  - name: edit_image
+    category: image_media
+    status: implemented
+    module: shared_tools/edit_image.py
+    description: Performs a basic edit on an image (resize, rotate, flip, brightness/contrast/sharpness/
+      grayscale enhancement, or convert to a single-page PDF).
+    parameters:
+      image_path: {type: string}
+      action: {type: string, enum: [resize, rotate, flip, enhance, to_pdf]}
+      output_path: {type: string}
+      width: {type: integer}
+      height: {type: integer}
+      page_size: {type: string, enum: [letter, legal, a4]}
+      degrees: {type: integer}
+      direction: {type: string, enum: [horizontal, vertical]}
+      enhancement: {type: string, enum: [brightness, contrast, sharpness, grayscale]}
+      factor: {type: number}
+    required: [image_path, action]
+    suggested_domain: document_production
+    domain_description: "Render court forms and documents from the template library, then archive the output for the client."
+    seed_beliefs:
+      - "edit_image needs Pillow (PIL); confirmed installed 2026-07-28. It is purely mechanical, no model involved, so it's fully reliable unlike read_scanned_document."
+    credentials_env: []
+
+  - name: screenshot_capture
+    category: image_media
+    status: scaffold
+    description: Captures a screenshot of a URL rendered in a headless browser.
+    parameters:
+      url: {type: string}
+      output_path: {type: string}
+    required: [url]
+    suggested_domain: web_research
+    domain_description: "Search and read the open web to answer questions the local file library can't."
+    seed_beliefs:
+      - "screenshot_capture needs a headless browser (e.g. playwright) installed; web_fetch is the lighter-weight option when only text is needed."
+    credentials_env: []
+
+  - name: image_generate
+    category: image_media
+    status: scaffold
+    description: Generates an image from a text prompt via an external image-generation API.
+    parameters:
+      prompt: {type: string}
+      output_path: {type: string}
+    required: [prompt]
+    suggested_domain: document_production
+    domain_description: "Render court forms and documents from the template library, then archive the output for the client."
+    seed_beliefs: []
+    credentials_env: [IMAGE_GEN_API_KEY]
+
+  - name: social_media_post
+    category: social_research
+    status: scaffold
+    description: Posts a message to a connected social media account (e.g. X/Twitter, LinkedIn).
+    parameters:
+      platform: {type: string, enum: [twitter, linkedin]}
+      text: {type: string}
+    required: [platform, text]
+    suggested_domain: web_research
+    domain_description: "Search and read the open web to answer questions the local file library can't."
+    seed_beliefs: []
+    credentials_env: [SOCIAL_API_KEY, SOCIAL_API_SECRET]

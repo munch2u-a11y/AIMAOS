@@ -1,0 +1,1 @@
+# AIMAOS shared kernel package

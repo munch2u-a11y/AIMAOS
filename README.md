@@ -1,155 +1,238 @@
-# AIMAOS - AI Multi-Agent Office Suite Operating System
+# AIMAOS — AI Multi-Agent Office Suite Operating System
 
 > **Autonomous, 100% Offline, Model-Agnostic Multi-Agent Enterprise Office Suite & Document Production Engine**  
-> Built for complete model agility. Designed to run on any local LLM runner or backend while enabling multi-agent coordination that far exceeds single-agent system limits.
+> *Designed to automate document production, client folder organization, legal research, and task coordination for small offices operating on budget local hardware.*
 
 ---
 
-## ⚡ System Philosophy: Multi-Agent Synergy vs. Monolithic Single Agents
+## 💡 Why AIMAOS is Built for Small Offices on a Budget
 
-Single monolithic AI agents operating locally face severe context window limitations, attention degradation, and hardware throttling when forced to perform multi-stage workflows (such as ingesting forms, checking duplicate records, researching statutes, rendering templates, compiling PDFs, triaging security, and sending client packages).
+Small firms and solo offices often struggle with administrative overhead: organizing hundreds of unclassified client files, tracking court deadlines, preparing forms, and keeping case summaries up to date. Cloud AI services can get expensive with monthly API subscriptions, while single-agent local setups often stall when forced to manage multi-stage administrative workflows.
 
-**AIMAOS** (*AI Multi-Agent Office Suite*) solves this by decomposing enterprise workflows into a specialized, collaborative mini-agent operating system. By decoupling responsibilities into autonomous agents running discrete single-thought turn cycles, AIMAOS enables local hardware to track and execute complex end-to-end business operations with precision.
+**AIMAOS** provides a practical, 100% offline desktop operating suite that runs entirely on your local hardware:
+
+1. **Zero API Costs & Total Privacy**: Runs locally using open-weights models via Ollama (or any local LLM runner). No subscription fees, no cloud telemetry, and no client data leaving your local machine.
+2. **Dedicated Per-Folder Case Managers**: Every client directory receives a dedicated manager (`CaseAgent`) that continuously maintains a human-readable case summary (`CLIENT_FILE.md`), active timelines, court deadlines, and required-document checklists.
+3. **Independent Agent Growth & Skill Formation**: Agents dynamically learn from experience and user preferences, evolving new skills over time through background reflections without bloated static prompts.
+4. **Dual Memory Storage Architecture**: Combines transactional **Relational SQL** core safety for exact case/task tracking with semantic **Vector Store Memory** (ChromaDB / Pinecone / Dummy) for context retrieval.
+5. **Automated Inter-Agent Task Delegation**: When an agent identifies a required action during document review—such as needing statutory research, template rendering, or drive file ingestion—it posts a structured task to the central office board, automatically routing the work to the right specialist agent.
+6. **Hardware-Enforced Outbound Email Safety**: Operates in strict `READ_ONLY` mode by default (or `WHITELIST_ONLY`), ensuring agents can never accidentally email clients or external parties.
+7. **Voice Scribe Dictation**: Dictate quick audio notes directly into the web interface; the system transcribes the recording and attaches the takeaways straight to the client's case file.
 
 ---
 
-## 🧠 How an Individual Agent Operates
+## 📁 How Dedicated Per-Folder Case Managers Work
 
-Each mini-agent in AIMAOS is built as an independent, isolated processing unit:
+In AIMAOS, client file management is decoupled from global office operations. When an external drive or intake directory is ingested, the system provisions a dedicated **CaseManager (`CaseAgent`)** for each individual client folder:
+
+```
+Alix-AI/workspace/output/
+├── name_change/
+│   ├── sample_client/
+│   │   ├── CLIENT_FILE.md              <-- Live Human-Readable Case Summary
+│   │   ├── .client_file_state.json     <-- Structured JSON State
+│   │   ├── .case_agent/mrag_data/      <-- Private Isolated Case Memory
+│   │   ├── Petition - Name Change.docx <-- Client Document / Filing
+│   │   └── Birth_Certificate.jpg       <-- Ingested Evidence
+```
+
+*(Everything under `workspace/` is generated locally and excluded from git.)*
+
+### Key Functions of the Per-Folder CaseManager:
+* **Living Markdown Record (`CLIENT_FILE.md`)**: Automatically writes and updates a single text file in the client's directory containing:
+  - **Status Summary**: Overview of recent filings, discovery packages, and active litigation status.
+  - **Timelines & Court Deadlines**: Extracted hearing dates, response windows, and filing deadlines synced to the office calendar.
+  - **To-Do & Required Document Checklists**: Itemized tracking of pending vs. received paperwork (e.g. `[ ] Financial Affidavit — Pending`, `[x] Birth Certificate — Received`).
+  - **Activity Log**: Timestamped audit trail of all file ingestions, reviews, and updates.
+* **Strict Client Data Isolation**: Each CaseManager maintains its memory store inside `.case_agent/mrag_data/` within that client's directory. Confidential facts from Client A never spill into Client B's context window or overload roster agents.
+* **Cross-Case Category Knowledge Inheritance**: CaseManagers working in the same practice area (e.g. `name_change`, `estate_planning`, `probate`, `guardianship`, `family`) share category-specific procedural skills (`comms/category_skills/<category>.json`), allowing new case managers to inherit practice area shortcuts on day one.
+
+---
+
+## 🧬 How Agents Learn & Evolve Skills Independently
+
+AIMAOS mini-agents do not rely on fixed, static system prompts. Instead, they feature an adaptive **Helix-style mRAG memory architecture** that allows each agent to grow and acquire new skills independently based on experience and user preferences.
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────┐
-│                          INDIVIDUAL MINI-AGENT                          │
+│                      HELIX AGENT SKILL FORMATION                        │
 ├─────────────────────────────────────────────────────────────────────────┤
-│ 1. Workspace Isolation : Private directory, memory store, config        │
-│ 2. Ultra-Minimal Prompt: Identity + Heaviest mRAG ID Belief             │
-│ 3. mRAG Context Injection: Dynamic memory & premise loading per turn     │
-│ 4. Single-Thought Loop  : Discrete task/thought processing cycle         │
-│ 5. Subagent-Tool Model  : Delegates subtasks to specialized subagents   │
+│ 1. Turn Execution Log  : Records raw task outcome & user feedback       │
+│ 2. Memory Store        : Saved to workspace/.memory/mrag_data/memory.json│
+│ 3. Background Reflection: Scheduled LLM pass analyzes patterns         │
+│ 4. Skill Consolidation : Synthesizes proven workflow into skills.json   │
+│ 5. Pre-Generative Inject: Dynamic prompt injection of top skills       │
 └─────────────────────────────────────────────────────────────────────────┘
 ```
 
-1. **Isolated Workspace**: Each agent maintains its own filesystem root (`Alix-AI`, `Kai-AI`, `Marley-AI`, etc.), private memory directory (`workspace/.memory`), configuration, and IPC inbox/outbox queues.
-2. **Ultra-Minimal System Prompt**: Static system prompts are stripped down to identity + core mRAG ID belief (`Identity: You are {Name}, the {Role} in AIMAOS.\nCore Belief: {heaviest_id_belief}`).
-3. **Dynamic mRAG Context Injection**: Turn context, client details, rules of procedure, and task histories are injected dynamically into the prompt on each turn via mRAG, eliminating static context bloat.
-4. **Single-Thought Turn Execution Loop**: Each turn represents a single discrete thought or task cycle (e.g. Turn 1: Process Marley turn dispatch; Turn 2: Process inter-agent request).
-5. **Subagent-as-Tools Paradigm**: Rather than clogging agent context with monolithic inline tool functions, agents delegate heavy processing to specialized subagent clones.
+### How New Skills Form:
+1. **Raw Experience Recording**: Every time an agent executes a turn, handles an error, or receives user feedback, it logs the event to its private memory store (`memory.json`).
+2. **Periodic Background Reflection**: Every N cycles (managed by the Office Manager), the agent executes a background reflection pass over recent logs.
+3. **Skill Consolidation**: When the agent observes a repeating successful workflow or user preference (e.g. *"Always verify file existence before listing directory"*, or *"Format legal notices with explicit county header"*), it distills the pattern into a permanent **Skill belief** (`skills.json`).
+4. **Dynamic System Prompt Injection**: On subsequent turns, the pre-generative mRAG engine injects the highest-weighted evolved skills into the agent's ultra-minimal system prompt, continuously tailoring agent behavior to user preferences.
 
 ---
 
-## 🏢 How Multi-Agent Office Suite Subsystems Collaborate
+## 💾 Dual Memory Storage Architecture: Relational SQL Core vs. Vector Store Memory
+
+AIMAOS implements a dual-layer storage hub that balances transactional safety with semantic retrieval:
+
+```
+┌─────────────────────────────────────────────────────────────────────────┐
+│                    AIMAOS DUAL MEMORY STORAGE HUB                       │
+├─────────────────────────────────────────────────────────────────────────┤
+│                                                                         │
+│  1. STRUCTURED RELATIONAL CORE (SQLite — comms/office_database.sqlite)   │
+│     • Manages cases, active task queues, and legal template catalogs    │
+│     • Guarantees atomic row locking, zero data corruption, & fast SQL   │
+│     • Synchronizes state to CLIENT_FILE.md for staff inspection         │
+│                                                                         │
+│  2. SEMANTIC MEMORY ENGINE (mRAG Vector Stores)                         │
+│     • Handles semantic search & context injection over unstructured text│
+│     • Flexible Vector Store Backends (core/mrag/core/vector_store.py):  │
+│       - DummyVectorStore: SHA-256 pseudo-vector hashing (0-dep default) │
+│       - ChromaVectorStore: Local ChromaDB with real semantic embeddings │
+│       - PineconeVectorStore: Cloud vector index for enterprise scale    │
+└─────────────────────────────────────────────────────────────────────────┘
+```
+
+* **SQL Core**: Manages exact structured data where zero error tolerance is acceptable (case numbers, task ownership, deadlines, template lists).
+* **Vector Store**: Manages fuzzy semantic recall, experience retrieval, and prompt injection across unstructured client documents, research notes, and past review transcripts.
+
+---
+
+## 🔄 Inter-Agent Task Passing & Coordination Flow
 
 ```mermaid
 graph TD
-    Incoming["External Message (Email/Web/Discord/Telegram)"] --> Finn["Finn Security Gateway"]
-    Finn -->|1. Security Triage & Permission Audit| Board["Central Office Board (comms/office_board.json)"]
+    UserDrive["External Drive / Intake Files / Voice Dictation"] --> SecGateway["Security Officer & Comms Gateway"]
+    SecGateway -->|1. Triage & Log Task| Board["Central Office Board & SQLite Kernel (comms/office_database.sqlite)"]
     
-    Board <--> Marley["Marley Priority Dispatcher (CPU/GPU Load Balancer)"]
+    Board <--> Manager["Office Manager & Priority Scheduler"]
     
-    Marley -->|High Priority Turn| Alix["Alix (Document Production)"]
-    Marley -->|High Priority Turn| Quinn["Quinn (Statutory Research)"]
-    Marley -->|Normal Priority Turn| Kai["Kai (Librarian & Archiver)"]
-    Marley -->|Background Turn| Zoe["Zoe (DevOps & Synthesizer)"]
-
-    Alix -->|Deduplication Check| Kai
-    Alix -->|Commandeer Gateway| Finn
-    Finn --> Outbound["Client Package Dispatch"]
+    Manager -->|High Priority Turn| DocProducer["Document Producer (Template Cataloger & PDF Renderer)"]
+    Manager -->|High Priority Turn| Researcher["Legal Researcher (Statutory Analysis & Briefing)"]
+    Manager -->|Normal Priority Turn| Librarian["Digital Librarian (Drive Ingestion Scanner & Archiver)"]
     
-    Kai -->|Task Traces| TaskLogs["Task Log Archives (comms/task_logs/)"]
-    TaskLogs --> Zoe
-    Zoe -->|Clone Request| Rae["Rae Agent Cloner Engine"]
+    Librarian -->|Spawn & Assign| CaseManager["CaseManager (Per-Client Folder Reviewer)"]
+    
+    CaseManager -->|Discovers Missing Form| Board
+    CaseManager -->|Discovers Statutory Query| Board
+    CaseManager <--> CatSkills["Category Skill Repository (comms/category_skills/)"]
+    
+    DocProducer -->|Request Dispatch| SecGateway
+    SecGateway -->|Hardware Policy Verification| Outbound["Client Package Log (READ_ONLY / WHITELIST)"]
 ```
-
-### 1. Central Office Board & Activity Stream (`comms/office_board.py`)
-* Serves as the central state hub. Stores active task queues, turn statuses, priority levels (`CRITICAL`, `HIGH`, `NORMAL`, `BACKGROUND`), and a live activity stream ticker.
-
-### 2. Marley Priority Turn Scheduling Engine (`Marley-AI/core/orchestrator.py`)
-* Acts as the office CPU/GPU load balancer. Prevents local hardware bottlenecks by scheduling single-agent turns. High-priority user tasks (Alix document filings, Quinn statutory research) take immediate precedence over background maintenance (Zoe diagnostics).
-
-### 3. Kai Digital Librarian & Task Archiver (`Kai-AI/core/task_archiver.py`)
-* Automatically captures completed task execution traces (inputs, tools called, runtimes, outputs) into permanent JSON logs and performs fuzzy deduplication scanning on client records.
-
-### 4. Zoe Adaptive Diagnostic Synthesizer (`Zoe-AI/core/workflow_synthesizer.py`)
-* Analyzes Kai's archived task traces during background turns to generate system improvement reports, identifying operational bottlenecks and optimizing office performance.
-
-### 5. Finn Security Officer & Comms Gateway (`Finn-AI/core/agent.py`)
-* Triages unsolicited incoming communications, verifies sender security policies (`VERIFIED` vs `UNVERIFIED`), logs tasks to the Office Board, and enables active agents to commandeer outbound channels for client dispatches.
-
-### 6. Rae Agent Maker & Workspace Cloner (`Rae-AI/tools/clone_agent.py`)
-* Dynamically instantiates new mini-agent workspaces with isolated configs, IPC buses, and subagent tools on demand when specialized workloads emerge.
-
-### 7. Asynchronous File-Queue IPC Bus (`core/comms/bus.py`)
-* 100% offline, file-level messaging. Agents communicate via JSON envelope files (`msg_ID.json`) written to recipient inbox directories.
 
 ---
 
-## 🤖 Active Agent Roster
+## 🏢 Role-Agnostic Starter Roster Matrix
 
-| Agent Name | Specialized Role | Primary Responsibilities |
+Agent names in AIMAOS are customizable starter presets assigned during setup. The system resolves all agents dynamically by their **Job Title and Functional Role**:
+
+| Functional Job Title | Starter Name Preset | Core Role & Responsibilities |
 | :--- | :--- | :--- |
-| **Alix-AI** | Document Production | Jinja2 Word template rendering, TOC injection, PDF compilation, client output dispatch |
-| **Kai-AI** | Digital Librarian | Client record deduplication, cataloging, and task execution log archival |
-| **Marley-AI** | Office Manager | Turn priority scheduling, CPU/GPU load balancing, and calendar event management |
-| **Quinn-AI** | Researcher | Statutory legal research, case law analysis, and procedural briefing reports |
-| **Zoe-AI** | DevOps Engineer | System diagnostics, task trace analysis, and adaptive improvement report synthesis |
-| **Finn-AI** | Security Officer | Incoming message triage, sender permission checks, chat gateway, outbound channel commandering |
-| **Rae-AI** | Agent Maker | Dynamic mini-agent workspace cloning engine (instantiating new agent instances) |
-
----
-
-## 📁 System Directory Layout
-
-```
-/path/to/AIMAOS/
-├── Alix-AI/                  # Document Production Agent Workspace
-├── Kai-AI/                   # Digital Librarian & Task Archiver Workspace
-├── Marley-AI/                # Office Manager & Priority Scheduler Workspace
-├── Quinn-AI/                 # Research & Legal Intelligence Workspace
-├── Zoe-AI/                   # DevOps Maintenance Engineer Workspace
-├── Finn-AI/                  # Security Officer & Comms Gateway Workspace
-├── Rae-AI/                   # Agent Maker & Workflow Cloner Workspace
-├── comms/                    # Central IPC Communication Bus & Office Board
-│   ├── office_board.json     # Atomic Bulletin Board State
-│   └── task_logs/            # Kai Archived Task Traces
-├── ui/                       # Embedded Web Server & Dashboard
-│   ├── aimaos_ui.html        # 5-Tab Glassmorphism Dashboard
-│   └── static/index.html     # Web UI Layout
-├── System Technical Documents/# Full Technical Audit Suite & Architecture Docs
-├── aimaos_ui.py              # Self-Contained Dashboard Server Launcher
-├── main.py                   # System Entrypoint Launcher
-├── setup.py / setup.sh       # Model-Agnostic Setup Wizard
-├── Launch AIMAOS.sh          # One-Click Executable Shell Launcher
-└── tests/                    # End-to-End Integration Test Suites
-```
+| **Document Producer & Keeper** | `Alix` (Default) | Ingests intake forms, Jinja2 Word rendering, TOC OpenXML injection, PDF compilation, template library cataloging. |
+| **Digital Librarian & Archiver** | `Kai` (Default) | External drive scanning, client deduplication, SQLite case registration, task execution trace archival. |
+| **Office Manager & Scheduler** | `Marley` (Default) | Autonomous office daemon pulse loop, priority turn scheduling (`CRITICAL`, `HIGH`, `NORMAL`, `BACKGROUND`), task lease hygiene, load balancing. |
+| **Legal & Statutory Researcher** | `Quinn` (Default) | Statutory research, Florida Rules of Civil & Family Procedure, jurisdictional filing rules, formal legal memorandum writing. |
+| **DevOps Engineer & Synthesizer** | `Zoe` (Default) | Task trace analysis, Hermes operational improvement reports, performance bottleneck detection, tool catalog installation. |
+| **Security Officer & Comms Gateway** | `Finn` (Default) | Security triage, sender permission checks, hardware-enforced email policies (`READ_ONLY`, `WHITELIST_ONLY`), Voice Scribe audio dictation gateway. |
+| **Agent Maker & Cloner** | `Rae` (Default) | Dynamic workspace cloner. Instantiates new mini-agent workspaces fully integrated into main config, IPC bus, and Office Board. |
+| **Dedicated Case Manager** | `CaseAgent` (Dynamic) | Per-client mini-agent. Generates `CLIENT_FILE.md` summaries, required-document checklists, court deadlines, and inherits category practice skills. |
 
 ---
 
 ## ⚙️ Quick Start Guide
 
-### 1. Run Setup Wizard
+### 0. Prerequisites
+A local LLM runner. [Ollama](https://ollama.com) is the default:
+
 ```bash
-./setup.sh
-# or
-python3 setup.py
+ollama pull qwen3.5:2b       # every agent's default model
+ollama pull qwen3.5:0.8b     # optional: faster model for short-turn agents
 ```
 
-### 2. Launch All-in-One Dashboard & Browser
-```bash
-"./Launch AIMAOS.sh"
-# or
-python3 main.py
-```
-*Access the Web Dashboard at:* **`http://localhost:8080`**
+> **Model requirement:** agent turn-loops need a model that supports tool
+> calling. The qwen3.5 family works; some models (e.g. gemma3) return HTTP 400
+> for tool calls and can only fill prose-only roles such as the researcher's
+> `research_model`. Assign models per agent in `aimaos_config.yaml`.
 
-### 3. Run Integration Test Suite
+### 1. Install
 ```bash
-/path/to/user/Alix-AI/.venv/bin/python3 tests/test_multi_county_email_dispatch.py
-/path/to/user/Alix-AI/.venv/bin/python3 tests/test_helix_minimal_prompts.py
+git clone <this-repo> && cd AIMAOS
+python3 -m venv .venv && source .venv/bin/activate
+pip install -r requirements.txt
 ```
+
+### 2. Run the Setup Wizard — this creates your agents
+A fresh checkout contains **no agent workspaces**. The wizard materializes the
+starting roster for your kind of office from `starter_packs/`, assigns models,
+validates them against what Ollama actually has installed, and sets the
+outbound email policy:
+
+```bash
+python3 setup.py                                    # default pack: document_heavy
+python3 setup.py --pack document_heavy --force      # re-apply over existing workspaces
+python3 setup.py --email-security-mode WHITELIST_ONLY \
+                 --approved-recipients you@example.com
+```
+
+### 3. Start the Autonomous Office (Office Manager's daemon)
+```bash
+python3 run_office.py
+python3 run_office.py --max-cycles 5   # bounded run, useful for a first look
+```
+
+### 4. Launch All-in-One Dashboard & Web UI
+```bash
+./Launch\ AIMAOS.sh
+# or: python3 aimaos_ui.py
+```
+*Access Web Dashboard at:* **`http://localhost:8080`**
+
+### 5. Optional: ingest an existing drive or folder of work
+```bash
+python3 shared_tools/ingest_ssd_drive.py /path/to/your/drive
+```
+
+> **Outbound email is deny-all by default.** `aimaos_config.yaml` ships with
+> `security_mode: READ_ONLY` and an empty `approved_recipients` list; real SMTP
+> dispatch additionally requires `AIMAOS_SMTP_SEND=1` plus credentials in
+> `~/.config/aimaos/credentials.env`. Until you change that, packages are
+> logged locally and honestly reported as `SIMULATED`.
 
 ---
 
-## 🛡️ Model Agnosticism & Local Execution
+## 🛡️ Model & Repository Safety
 
-* **Model Agnostic**: AIMAOS makes zero assumptions about the underlying LLM. It functions with any local model backend, runner, or architecture.
-* **Local State Isolation**: 100% offline, private local execution. No external paid APIs or cloud dependencies required.
+* **Model Agnostic**: Compatible with any local LLM runner (Ollama, vLLM, LM Studio).
+* **100% Offline & Private**: Zero external cloud dependencies, zero telemetry, zero paid API credits consumed. All client records remain strictly local.
+* **Public Git Ready**: Built-in `.gitignore` excludes all client files, output documents, SQLite databases, credentials, agent memory stores, and task logs. Agent workspaces themselves are generated by `setup.py` and never committed.
+
+---
+
+## 🧪 Tests & Benchmarks
+
+See [`tests/README.md`](tests/README.md). Several suites drive real local LLM
+turns, so a full delegated turn can take minutes on CPU — the table there lists
+which suites make model calls and their expected runtimes.
+
+---
+
+## ⚠️ Accuracy & Human Review
+
+AIMAOS drives small local language models, which can misreport their own work —
+a 2B model will occasionally summarize a step as done that it never performed.
+Grounded-reporting prompts and artifact checks reduce this, but do not eliminate
+it. **Treat every generated document, research brief, and status summary as a
+draft requiring human review.** The bundled Florida court forms are blank format
+examples, not legal advice, and statutory citations produced by a local model
+must be verified against the official sources before any filing or client use.
+
+---
+
+## 📄 License
+
+Licensed under the [Apache License, Version 2.0](LICENSE). See [NOTICE](NOTICE)
+for attribution details.

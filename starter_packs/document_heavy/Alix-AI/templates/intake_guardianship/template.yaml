@@ -1,0 +1,9 @@
+name: Guardianship Intake Form
+description: Client-facing intake questionnaire for a guardianship matter (minor or
+  incapacitated adult).
+fields:
+  client_name: Value for client name
+  date_sent: Value for date sent
+  case_number: Optional matter reference
+  office_name: Optional office name
+default_format: docx

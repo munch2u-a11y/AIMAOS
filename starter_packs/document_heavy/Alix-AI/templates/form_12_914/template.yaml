@@ -1,0 +1,10 @@
+name: Certificate of Service (Form 12.914)
+description: Florida Family Law Rules of Procedure Form 12.914 - Certificate of Service
+fields:
+  client_name: Value for client name
+  petitioner_name: Value for petitioner name
+  respondent_name: Value for respondent name
+  county: Value for county
+  circuit_number: Value for circuit number
+  case_number: Value for case number
+default_format: docx

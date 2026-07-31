@@ -1,0 +1,29 @@
+domains:
+  file_research:
+    description: Explore local directories, search for files, and read documents to gather the information needed
+      to plan.
+    tools:
+    - shared_tools/browse_files.py
+    - Alix-AI/tools/search_files.py
+    - Alix-AI/tools/list_files.py
+    - Alix-AI/tools/read_document.py
+  scheduling:
+    description: 'Manage the office calendar: deadlines, hearings, and milestones.'
+    tools:
+    - Marley-AI/tools/manage_schedule.py
+    - shared_tools/google_calendar.py
+  office_utilities:
+    description: Everyday math, unit, and timezone conversions for office work.
+    tools:
+    - shared_tools/calculator.py
+    - shared_tools/unit_converter.py
+    - shared_tools/timezone_convert.py
+seed_beliefs:
+- manage_schedule add_event needs event_title and date; list_events shows the whole calendar.
+- 'Dispatch order is priority-weighted: CRITICAL before HIGH before NORMAL before BACKGROUND.'
+- google_calendar needs GOOGLE_CALENDAR_ACCESS_TOKEN set in the environment before any call will work; if a call
+  fails with 'not connected', that's a setup gap to flag, not a retry-worthy error.
+- manage_schedule is the office's own internal record; google_calendar is the client-visible external calendar
+  once connected. Use manage_schedule for internal deadline tracking regardless of whether Google is connected.
+- timezone_convert wants full IANA names like America/New_York, not abbreviations like EST; pass 'now' as
+  datetime_str for the current time.
