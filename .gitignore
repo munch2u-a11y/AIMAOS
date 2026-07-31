@@ -57,6 +57,8 @@ comms/office_database.sqlite*
 # Root-level runtime IPC state only. A bare "comms/" would also exclude the
 # shared kernel package core/comms/ (source code) from the repo.
 /comms/
+**/task_logs/
+comms/task_logs/
 
 # ------------------------------------------------------------------------------
 # 4. PRIVATE mRAG BELIEF STORES & AGENT MEMORIES
@@ -88,6 +90,7 @@ secrets.yaml
 # at setup time by `setup.py` from starter_packs/ (the source of truth).
 # ------------------------------------------------------------------------------
 /*-AI/
+Seth-AI/
 !starter_packs/
 
 # ------------------------------------------------------------------------------
