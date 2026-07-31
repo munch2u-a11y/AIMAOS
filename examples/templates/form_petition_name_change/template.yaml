@@ -1,0 +1,14 @@
+template_id: "form_12_982_a"
+title: "Petition for Change of Name (Adult)"
+category: "name_change"
+description: "Standard Jinja2 template for adult name change petitions."
+required_fields:
+  - client_name
+  - county
+  - circuit_number
+  - case_number
+  - new_name
+default_context:
+  circuit_number: "2nd"
+  county: "Leon"
+  case_number: "2026-DR-0000"
