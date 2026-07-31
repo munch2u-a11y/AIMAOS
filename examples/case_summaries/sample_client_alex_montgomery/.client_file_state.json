@@ -1,0 +1,17 @@
+{
+  "client_name": "Alex Montgomery",
+  "client_slug": "alex_montgomery",
+  "case_number": "2026-DR-0000",
+  "category": "name_change",
+  "matter_type": "Petition for Change of Name (Adult)",
+  "state": "open",
+  "opened": "2026-07-15T09:30:00",
+  "last_updated": "2026-07-31T12:00:00",
+  "checklist": {
+    "intake_questionnaire": true,
+    "photo_id": true,
+    "fingerprint_results": false,
+    "petition_draft": true,
+    "final_judgment": false
+  }
+}

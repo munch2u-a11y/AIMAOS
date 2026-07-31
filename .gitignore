@@ -24,6 +24,11 @@ tests/benchmark_results*.json
 **/.case_agent/
 **/.case_agent/**
 
+# Re-include anonymized examples
+!examples/**
+!examples/**/CLIENT_FILE.md
+!examples/**/.client_file_state.json
+
 # Document Formats & Client Files (Catch-all for work product outside starter packs)
 *.docx
 *.pdf
