@@ -1,6 +1,6 @@
 agent:
   name: Finn
   role: Security Officer & Comms Gateway
-  model: qwen3.5:0.8b
+  model: qwen3.5:2b
 paths:
   memory: workspace/.memory

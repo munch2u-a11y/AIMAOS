@@ -23,7 +23,7 @@ agents:
     model: qwen3.5:4b
   Finn:
     role: Security Officer & Comms Gateway
-    model: qwen3.5:0.8b
+    model: qwen3.5:2b
   Rae:
     role: Agent Maker & Workflow Cloner
     model: qwen3.5:4b

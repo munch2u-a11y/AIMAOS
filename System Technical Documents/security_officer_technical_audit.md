@@ -3,7 +3,7 @@
 ## 1. Agent Overview
 - **Workspace**: `<office root>/Finn-AI`
 - **Primary Function**: Incoming communication security triage, sender permission verification, client package output gateway, hardware email security policy enforcement, and Voice Scribe audio dictation transcription.
-- **Model**: `qwen3.5:0.8b` (ultra-low latency for short triage & security policy decisions).
+- **Model**: `qwen3.5:2b` (configured in `aimaos_config.yaml`).
 
 ---
 
