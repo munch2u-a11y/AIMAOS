@@ -1,4 +1,12 @@
-# AIMAOS Test & Benchmark Suites
+# AIMAOS Tests and Benchmark Suites
+
+The default release gate is isolated and does not require a model or mutate live office data:
+
+```bash
+python3 -m pytest
+```
+
+Pytest is configured to collect only `tests/unit/`. The older scripts below are manual integration and benchmark programs; run them by filename only after reading their side effects.
 
 Run everything from the office root with the interpreter that has the
 dependencies installed:

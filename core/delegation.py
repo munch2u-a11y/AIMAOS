@@ -129,15 +129,20 @@ class ToolSubagent:
         return prompt
 
     def _log_verbatim(self, directive, arguments, raw_output):
-        """Logs the full raw tool output — the permanent verbatim record."""
+        """Log provenance under the configured privacy policy.
+
+        Raw output storage is off by default for the public beta; a digest and
+        length retain auditability without creating an indefinite PII copy.
+        """
+        from core.privacy import privacy_safe_tool_record, redact_sensitive
         entry = {
             "timestamp": datetime.now().isoformat(),
             "agent": self.owner.name,
             "tool": self.name,
-            "directive": directive,
-            "arguments": arguments,
-            "raw_output": str(raw_output),
+            "directive": redact_sensitive(directive),
+            "arguments": json.loads(redact_sensitive(json.dumps(arguments, default=str))),
         }
+        entry.update(privacy_safe_tool_record(raw_output))
         path = os.path.join(self.log_dir,
                             f"{datetime.now().strftime('%Y%m%d_%H%M%S_%f')}_{self.name}.json")
         try:
@@ -171,7 +176,7 @@ class ToolSubagent:
             except Exception as e:
                 notes.append(f"(chunk {idx + 1} summary failed: {e})")
         joined = "\n".join(n for n in notes if n)
-        return f"[Condensed from {len(text)} chars of raw output — verbatim preserved in tool log]\n{joined}"
+        return f"[Condensed from {len(text)} chars of tool output]\n{joined}"
 
     def run(self, directive):
         """One tool-subagent thought: formulate the call from schema+beliefs,
@@ -191,6 +196,13 @@ class ToolSubagent:
 
         tc = resp.tool_calls[0]
         arguments = tc.get("arguments") or {}
+        from core.security import tool_execution_policy
+        allowed, policy_message = tool_execution_policy(self.name, arguments)
+        if not allowed:
+            self.owner.record_experience(
+                f"Security policy blocked {self.name}: {policy_message}",
+                category="memory", confidence=0.8, source=f"policy_{self.name}")
+            return f"SECURITY POLICY: {policy_message}"
         try:
             raw = self.module.execute(**arguments)
             outcome = "ok"
@@ -205,12 +217,13 @@ class ToolSubagent:
         condensed = self._summarize_output(directive, raw)
 
         # The experience IS the identity: record how this use of the tool went.
+        from core.privacy import redact_sensitive
         self.owner.record_experience(
-            f"Used {self.name} with {json.dumps(arguments)[:160]} -> {outcome}. "
-            f"Result gist: {str(condensed)[:180]}",
+            redact_sensitive(f"Used {self.name} with {json.dumps(arguments)[:160]} -> {outcome}. "
+                              f"Result gist: {str(condensed)[:180]}"),
             category="memory", confidence=0.6, source=f"tool_{self.name}")
 
-        return f"{condensed}\n(verbatim log: {log_path})"
+        return f"{condensed}\n(tool audit record: {os.path.basename(log_path)})"
 
 
 class OrchestratorSubagent:

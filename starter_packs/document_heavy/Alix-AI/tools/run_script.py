@@ -2,6 +2,7 @@ import os
 import sys
 import subprocess
 import yaml
+from core.security import resolve_within, validate_tool_name
 
 TOOL_DEFINITION = {
     "name": "run_script",
@@ -40,8 +41,11 @@ def execute(skill_name, input_data):
     skills_dir = paths.get("skills", "./skills")
     
     # Normalize skill name
-    skill_name = skill_name.strip().replace(" ", "_").lower()
-    run_py_path = os.path.join(skills_dir, skill_name, "run.py")
+    try:
+        skill_name = validate_tool_name(skill_name, label="skill name")
+        run_py_path = resolve_within(skills_dir, skill_name, "run.py")
+    except ValueError as exc:
+        return f"Error: {exc}"
 
     if not os.path.exists(run_py_path):
         return f"Error: Skill '{skill_name}' does not exist or has no 'run.py' at: {run_py_path}"

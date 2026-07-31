@@ -124,7 +124,7 @@ def configure_workspaces():
         except Exception:
             pass
     agent_models = office_cfg.get("agents", {})
-    default_model = office_cfg.get("llm", {}).get("default_model", "qwen3.5:2b")
+    default_model = office_cfg.get("llm", {}).get("default_model", "qwen3.5:4b")
     installed = get_installed_ollama_models()
 
     table = Table(title="AIMAOS Mini-Agent Roster Matrix")

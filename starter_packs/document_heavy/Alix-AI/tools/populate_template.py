@@ -12,6 +12,7 @@ from datetime import datetime
 
 sys.path.insert(0, os.path.join(AIMAOS_ROOT, "Alix-AI"))
 from business.document_engine import DocumentEngine
+from core.security import normalize_slug, resolve_within, sanitize_output_basename
 
 TOOL_DEFINITION = {
     "name": "populate_template",
@@ -66,15 +67,15 @@ def execute(template_name, context, output_name=None, output_format=None, includ
     # Normalize: models often pass "form_x.docx" when the template folder is
     # "form_x" — strip the extension for folder-based lookups.
     base_name = template_name[:-5] if template_name.lower().endswith(".docx") else template_name
+    try:
+        base_name = normalize_slug(base_name, label="template name")
+    except ValueError as exc:
+        return f"Error: {exc}"
 
     # Resolve template docx path
     candidates = [
         os.path.join(templates_dir, base_name, "template.docx"),
-        os.path.join(templates_dir, template_name, "template.docx"),
-        os.path.join(templates_dir, template_name, f"{template_name}.docx"),
-        os.path.join(templates_dir, f"{template_name}.docx"),
-        os.path.join(os.path.expanduser("~"), f"{template_name}.docx"),
-        template_name
+        os.path.join(templates_dir, f"{base_name}.docx"),
     ]
 
     docx_template_path = None
@@ -105,13 +106,15 @@ def execute(template_name, context, output_name=None, output_format=None, includ
     if not output_name:
         client_clean = context.get("client_name", "document").lower().replace(" ", "_")
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        clean_tpl_name = os.path.splitext(os.path.basename(template_name))[0]
+        clean_tpl_name = base_name
         output_name = f"{client_clean}_{clean_tpl_name}_{timestamp}"
+
+    output_name = sanitize_output_basename(output_name)
 
     if not output_format:
         output_format = config.get("default_output_format", "docx")
 
-    output_docx_path = os.path.join(output_dir, f"{output_name}.docx")
+    output_docx_path = resolve_within(output_dir, f"{output_name}.docx")
     convert_pdf = (output_format.lower() == "pdf")
 
     try:

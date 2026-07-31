@@ -9,6 +9,7 @@ AIMAOS_ROOT = os.environ.get("AIMAOS_ROOT") or _find_aimaos_root()
 import json
 import yaml
 from datetime import datetime
+from core.security import SecurityValidationError, validate_agent_name
 
 AIMAOS_ROOT = AIMAOS_ROOT
 CONFIG_PATH = os.path.join(AIMAOS_ROOT, "aimaos_config.yaml")
@@ -91,7 +92,7 @@ def seed_initial_mrag_beliefs(workspace_dir, clean_name, role):
         confidence=0.9, source="clone_seed")
     store.add_belief(
         category="skills", belief_id="seed_skill_browse",
-        content="browse_files can list, search, and read anything in the office root; "
+        content="browse_files can list, search, and read approved office storage; "
                 "reading before acting beats guessing.",
         confidence=0.8, source="clone_seed")
     store.add_belief(
@@ -101,7 +102,14 @@ def seed_initial_mrag_beliefs(workspace_dir, clean_name, role):
         confidence=0.8, source="clone_seed")
 
 def execute(agent_name, role):
-    clean_name = agent_name.capitalize().replace(" ", "")
+    try:
+        clean_name = validate_agent_name(agent_name)
+    except SecurityValidationError as exc:
+        return f"Error: {exc}"
+    role = (role or "").strip()
+    if not role or len(role) > 120 or any(ch in role for ch in "\r\n"):
+        return "Error: role must be a single line between 1 and 120 characters."
+    role_literal = json.dumps(role)
     workspace_dir = os.path.join(AIMAOS_ROOT, f"{clean_name}-AI")
 
     if os.path.exists(workspace_dir):
@@ -134,7 +142,7 @@ def execute(agent_name, role):
             },
         },
         "seed_beliefs": [
-            "browse_files can list, search, and read anything under ~; reading before acting beats guessing.",
+            "browse_files can list, search, and read approved office storage; reading before acting beats guessing.",
         ],
     }
     with open(os.path.join(workspace_dir, "capabilities.yaml"), "w") as f:
@@ -158,12 +166,12 @@ from core.office_agent import OfficeAgent
 logger = logging.getLogger(__name__)
 
 class {clean_name}Agent(OfficeAgent):
-    """{clean_name}-AI: {role}.
+    """Rae-created AIMAOS specialist.
     Rae-cloned mini-agent: evolving belief-based identity, real LLM
     single-thought turns, delegation to specialized tool subagents.
     """
     def __init__(self, config=None):
-        super().__init__("{clean_name}", role="{role}", config=config)
+        super().__init__("{clean_name}", role={role_literal}, config=config)
 
     def process_user_message(self, message, sender="user", channel="web_ui"):
         """Accepts a direct user message and posts it to the Office Board."""
@@ -177,7 +185,7 @@ class {clean_name}Agent(OfficeAgent):
         self.record_experience(
             f"A user ({{sender}}) sent me a direct request via {{channel}}.",
             category="memory", confidence=0.55)
-        return (f"{clean_name} ({role}): Logged your request to the Office Board "
+        return (f"{clean_name} (" + {role_literal} + "): Logged your request to the Office Board "
                 f"(Task {{task_id}}). It will be handled in priority order.")
 '''
     with open(os.path.join(workspace_dir, "core", "agent.py"), "w") as f:

@@ -12,6 +12,13 @@ import platform
 import subprocess
 import yaml
 from datetime import datetime
+from core.security import (
+    SecurityValidationError,
+    require_allowed_path,
+    resolve_within,
+    sanitize_output_basename,
+    validate_slug,
+)
 
 # Optional imports handled gracefully
 try:
@@ -142,23 +149,24 @@ def execute(template_name, field_values, output_name=None, output_format=None):
     if not DocxTemplate:
         return "Error: docxtpl is not installed. Run 'pip install docxtpl'."
 
-    config = get_config()
+    config = get_config() or {}
     paths = config.get("paths", {})
-    templates_dir = paths.get("templates", "./templates")
-    output_dir = paths.get("output", "./workspace/output")
+    templates_dir = require_allowed_path(paths.get("templates", "./templates"))
+    output_dir = require_allowed_path(paths.get("output", "./workspace/output"), must_exist=False)
+    if not isinstance(field_values, dict) or len(field_values) > 100:
+        return "Error: field_values must be an object with at most 100 fields."
     
     if not os.path.exists(output_dir):
         os.makedirs(output_dir, exist_ok=True)
 
-    # Resolve template docx path
-    docx_template_path = None
-    
-    # Try directory path: templates/name/template.docx
-    try_dir = os.path.join(templates_dir, template_name, "template.docx")
-    # Try simple file path: templates/name.docx
-    try_file = os.path.join(templates_dir, template_name)
-    if not try_file.endswith(".docx"):
-        try_file += ".docx"
+    # Resolve an identifier, never an arbitrary model-provided path.
+    template_id = os.path.splitext(os.path.basename(str(template_name)))[0]
+    try:
+        template_id = validate_slug(template_id, label="template identifier")
+    except SecurityValidationError as exc:
+        return f"Error: {exc}"
+    try_dir = resolve_within(templates_dir, template_id, "template.docx")
+    try_file = resolve_within(templates_dir, f"{template_id}.docx")
         
     if os.path.exists(try_dir):
         docx_template_path = try_dir
@@ -170,14 +178,15 @@ def execute(template_name, field_values, output_name=None, output_format=None):
     # Determine output filename
     if not output_name:
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        clean_template_name = os.path.splitext(os.path.basename(template_name))[0]
-        output_name = f"{clean_template_name}_{timestamp}"
+        output_name = f"{template_id}_{timestamp}"
 
     # Ensure format selection
     if not output_format:
         output_format = config.get("default_output_format", "docx")
-    
-    output_docx_path = os.path.join(output_dir, f"{output_name}.docx")
+    if output_format not in {"docx", "pdf"}:
+        return "Error: output_format must be 'docx' or 'pdf'."
+    output_name = sanitize_output_basename(str(output_name), fallback=f"{template_id}_draft")
+    output_docx_path = resolve_within(output_dir, f"{output_name}.docx")
 
     # Render template using docxtpl (Jinja2 syntax)
     try:

@@ -1,31 +1,23 @@
-"""Universal local-PC file research tool, shared by every AIMAOS agent.
+"""Universal approved-workspace file research tool, shared by every agent.
 
 Lets an agent explore directories, search by name/content, and read files
-anywhere under ~ — the raw material for reasoning out a plan.
+under the AIMAOS application tree or operator-approved storage roots.
 Reads are size-capped; the ToolSubagent layer chunk-summarizes anything big.
 """
 import os
 import re
 
-ALLOWED_ROOT = os.path.expanduser("~")
+from core.security import allowed_data_roots, path_is_sensitive, require_allowed_path
+
+ALLOWED_ROOTS = allowed_data_roots()
 MAX_READ_CHARS = 12000
 MAX_LIST_ENTRIES = 60
 MAX_SEARCH_HITS = 20
 
-# Paths under ALLOWED_ROOT that are known stale/orphaned, not live office
-# data -- e.g. ~/.agent_company is leftover from before this project
-# was restructured into AIMAOS and isn't referenced anywhere in current code,
-# but it's still "under ~" so agents have wandered into it and
-# reported its day-old, unrelated contents (like an old office_board.json)
-# as if it were the live system. Denied explicitly rather than narrowing
-# ALLOWED_ROOT itself, since agents legitimately need to reach real client
-# files dropped anywhere under the home directory (e.g. ~/Downloads).
-DENIED_PATHS = (os.path.expanduser("~/.agent_company"),)
-
 TOOL_DEFINITION = {
     "name": "browse_files",
-    "description": "Explores the local computer: list a directory, search files by name or content, "
-                   "or read a file's text. Paths must be under ~.",
+    "description": "Explores approved office storage: list a directory, search files by name or content, "
+                   "or read a file's text.",
     "parameters": {
         "type": "object",
         "properties": {
@@ -49,13 +41,7 @@ TOOL_DEFINITION = {
 
 
 def _safe(path):
-    real = os.path.realpath(path)
-    if not real.startswith(ALLOWED_ROOT):
-        raise ValueError(f"Path {path} is outside the allowed root {ALLOWED_ROOT}")
-    for denied in DENIED_PATHS:
-        if real == denied or real.startswith(denied + os.sep):
-            raise ValueError(f"Path {path} is a known stale/unrelated directory, not live office data.")
-    return real
+    return require_allowed_path(path)
 
 
 def _read_text(path, limit=MAX_READ_CHARS):
@@ -85,7 +71,8 @@ def execute(action, path, query=None):
     if action == "list":
         if not os.path.isdir(path):
             return f"Not a directory: {path}"
-        entries = sorted(os.listdir(path))
+        entries = sorted(entry for entry in os.listdir(path)
+                         if not path_is_sensitive(os.path.join(path, entry), root=path))
         hidden = len(entries) - MAX_LIST_ENTRIES
         lines = []
         for e in entries[:MAX_LIST_ENTRIES]:
@@ -106,9 +93,13 @@ def execute(action, path, query=None):
         q = query.lower()
         hits = []
         for root, dirs, files in os.walk(path):
-            dirs[:] = [d for d in dirs if not d.startswith(".") and d != "__pycache__" and d != ".venv"]
+            dirs[:] = [d for d in dirs
+                        if not d.startswith(".")
+                        and not path_is_sensitive(os.path.join(root, d), root=path)]
             for fname in files:
                 full = os.path.join(root, fname)
+                if path_is_sensitive(full, root=path):
+                    continue
                 if q in fname.lower():
                     hits.append(f"{full} (filename match)")
                 elif os.path.getsize(full) < 400_000 and not fname.lower().endswith(

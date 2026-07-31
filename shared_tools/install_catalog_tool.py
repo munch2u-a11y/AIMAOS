@@ -25,6 +25,12 @@ import json
 from datetime import datetime
 
 import yaml
+from core.security import (
+    SecurityValidationError,
+    shell_tools_enabled,
+    validate_agent_name,
+    validate_tool_name,
+)
 
 CATALOG_PATH = os.path.join(AIMAOS_ROOT, "shared_tools", "tool_catalog.yaml")
 
@@ -55,7 +61,9 @@ TOOL_DEFINITION = {
 }
 
 _MODULE_TEMPLATE = '''"""Tool subagent: {tool_name} (installed from the shared catalog for {target_agent}, {date})."""
+import shlex
 import subprocess
+from core.security import shell_tools_enabled
 
 TOOL_DEFINITION = {definition}
 
@@ -64,12 +72,14 @@ COMMAND_TEMPLATE = {command_template!r}
 
 def execute(**kwargs):
     if COMMAND_TEMPLATE:
+        if not shell_tools_enabled():
+            return "SECURITY POLICY: shell-backed tools are disabled."
         try:
             cmd = COMMAND_TEMPLATE.format(**kwargs)
         except KeyError as e:
             return f"Missing argument for command template: {{e}}"
         try:
-            proc = subprocess.run(cmd, shell=True, capture_output=True, text=True, timeout=120)
+            proc = subprocess.run(shlex.split(cmd), shell=False, capture_output=True, text=True, timeout=120)
             out = (proc.stdout or "") + (("\\n[stderr] " + proc.stderr) if proc.stderr.strip() else "")
             return out.strip() or f"(command exited {{proc.returncode}} with no output)"
         except Exception as e:
@@ -111,6 +121,14 @@ def _register_domain_and_beliefs(caps_path, domain, domain_description, tool_pat
 
 
 def execute(target_agent, tool_name, command_template=None):
+    try:
+        target_agent = validate_agent_name(target_agent)
+        tool_name = validate_tool_name(tool_name)
+    except SecurityValidationError as exc:
+        return f"Error: {exc}"
+    if command_template and not shell_tools_enabled():
+        return ("Error: shell-backed catalog tools are disabled. Enable developer mode and "
+                "security.allow_shell_tools only in an isolated development environment.")
     target_dir = os.path.join(AIMAOS_ROOT, f"{target_agent}-AI")
     if not os.path.isdir(target_dir):
         return f"Error: no agent workspace at {target_dir}. (Rae must clone the agent first.)"

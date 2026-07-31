@@ -11,6 +11,7 @@ import shutil
 import yaml
 import importlib.util
 from datetime import datetime
+from core.security import require_allowed_path, resolve_within, sanitize_filename
 
 sys.path.insert(0, os.path.join(AIMAOS_ROOT, "Alix-AI"))
 from business.watchers.email_connector import EmailConnector
@@ -64,7 +65,7 @@ def get_config():
     return {}
 
 def execute(file_path, client_name, recipient_email=None, notes=None):
-    abs_file = os.path.abspath(file_path)
+    abs_file = require_allowed_path(file_path)
     if not os.path.exists(abs_file):
         return f"Error: File to dispatch does not exist at {abs_file}"
 
@@ -75,11 +76,13 @@ def execute(file_path, client_name, recipient_email=None, notes=None):
     # to that instead of deciding a flat path here. Falls back to creating
     # an uncategorized record if Kai hasn't organized this client yet.
     client_root = client_file.resolve_client_dir(client_name)
+    client_root = require_allowed_path(client_root)
     date_str = datetime.now().strftime("%Y-%m-%d")
-    client_archive_dir = os.path.join(client_root, date_str)
+    client_archive_dir = resolve_within(client_root, date_str)
     os.makedirs(client_archive_dir, exist_ok=True)
 
-    dest_file = os.path.join(client_archive_dir, os.path.basename(abs_file))
+    safe_name = sanitize_filename(os.path.basename(abs_file), allowed_extensions={".docx", ".pdf"})
+    dest_file = resolve_within(client_archive_dir, safe_name)
     if abs_file != dest_file:
         shutil.copy2(abs_file, dest_file)
 

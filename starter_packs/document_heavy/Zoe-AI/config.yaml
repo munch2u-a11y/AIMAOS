@@ -1,7 +1,7 @@
 agent:
   name: Zoe
   role: DevOps & Technical Maintenance Engineer
-  model: qwen3.5:2b
+  model: qwen3.5:4b
 paths:
   diagnostics: workspace/diagnostics
   memory: workspace/.memory

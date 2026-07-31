@@ -1,40 +1,9 @@
-# AIMAOS dependencies.
-#   pip install -r requirements.txt
-#
-# The office runs fully offline against a local LLM runner (Ollama by default;
-# any OpenAI-compatible server works via llm.backend: llamacpp).
-
-# --- Core runtime (required) ---
-pyyaml            # config + capability files
-rich              # setup wizard / console UI
-ollama            # local LLM client (default backend)
-requests          # llama.cpp / HTTP backends
-
-# --- Document production (required for the document_heavy starter pack) ---
-docxtpl           # Jinja2 rendering into .docx templates
-python-docx       # .docx inspection and editing
-pypdf             # PDF text extraction
-
-# --- Optional: better mRAG recall -------------------------------------------
-# Without these the belief store falls back to a deterministic hash-based
-# vector store (works, but recall is keyword-adjacent rather than semantic).
-# numpy
-# chromadb
-# scikit-learn
-# tiktoken
-# spacy             # plus: python -m spacy download en_core_web_sm
-
-# --- Optional: extra shared_tools capabilities ------------------------------
-# Each line powers specific entries in shared_tools/tool_catalog.yaml; install
-# only what the tools you install actually need.
-# openpyxl        # spreadsheet reading/writing
-# pillow          # edit_image
-# pytesseract     # read_scanned_document (also needs the tesseract binary)
-# pymupdf         # fast PDF rendering (imported as fitz)
-# reportlab       # assemble_pdf
-# striprtf        # .rtf ingestion
-# docx2pdf        # docx -> pdf on platforms without LibreOffice
-
-# --- Optional external binary ---
-# LibreOffice (`soffice`) enables .docx -> .pdf conversion; setup.py reports
-# whether it was found.
+# AIMAOS public-beta runtime dependencies (validated 2026-07-31).
+# Direct dependencies are pinned so beta installations do not drift silently.
+PyYAML==6.0.3
+rich==15.0.0
+ollama==0.6.2
+requests==2.34.2
+docxtpl==0.20.2
+python-docx==1.2.0
+pypdf==6.14.2

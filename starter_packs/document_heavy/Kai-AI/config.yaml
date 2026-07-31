@@ -1,7 +1,7 @@
 agent:
   name: Kai
   role: Digital Librarian & Records Keeper
-  model: qwen3.5:2b
+  model: qwen3.5:4b
 paths:
   templates: templates
   catalog: workspace/catalog

@@ -18,6 +18,12 @@ AIMAOS_ROOT = os.environ.get("AIMAOS_ROOT") or _find_aimaos_root()
 import json
 import yaml
 from datetime import datetime
+from core.security import (
+    SecurityValidationError,
+    shell_tools_enabled,
+    validate_agent_name,
+    validate_tool_name,
+)
 
 TOOL_DEFINITION = {
     "name": "design_tool_subagent",
@@ -74,7 +80,9 @@ TOOL_DEFINITION = {
 }
 
 _MODULE_TEMPLATE = '''"""Tool subagent: {tool_name} (designed by Zoe for {target_agent}, {date})."""
+import shlex
 import subprocess
+from core.security import shell_tools_enabled
 
 TOOL_DEFINITION = {definition}
 
@@ -83,12 +91,14 @@ COMMAND_TEMPLATE = {command_template!r}
 
 def execute(**kwargs):
     if COMMAND_TEMPLATE:
+        if not shell_tools_enabled():
+            return "SECURITY POLICY: shell-backed tools are disabled."
         try:
             cmd = COMMAND_TEMPLATE.format(**kwargs)
         except KeyError as e:
             return f"Missing argument for command template: {{e}}"
         try:
-            proc = subprocess.run(cmd, shell=True, capture_output=True, text=True, timeout=120)
+            proc = subprocess.run(shlex.split(cmd), shell=False, capture_output=True, text=True, timeout=120)
             out = (proc.stdout or "") + (("\\n[stderr] " + proc.stderr) if proc.stderr.strip() else "")
             return out.strip() or f"(command exited {{proc.returncode}} with no output)"
         except Exception as e:
@@ -102,11 +112,19 @@ def execute(**kwargs):
 def execute(target_agent, tool_name, description, parameters_schema,
             domain, required_params=None, domain_description=None,
             seed_beliefs=None, command_template=None):
+    try:
+        target_agent = validate_agent_name(target_agent)
+        tool_name = validate_tool_name(tool_name)
+        domain = validate_tool_name(domain, label="capability domain")
+    except SecurityValidationError as exc:
+        return f"Error: {exc}"
+    if command_template and not shell_tools_enabled():
+        return ("Error: shell-backed tool creation is disabled. Enable developer mode and "
+                "security.allow_shell_tools only in an isolated development environment.")
     target_dir = os.path.join(AIMAOS_ROOT, f"{target_agent}-AI")
     if not os.path.isdir(target_dir):
         return f"Error: no agent workspace at {target_dir}. (Rae must clone the agent first.)"
 
-    tool_name = tool_name.strip().lower().replace(" ", "_").replace("-", "_")
     if isinstance(parameters_schema, str):
         try:
             parameters_schema = json.loads(parameters_schema)

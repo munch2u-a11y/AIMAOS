@@ -69,11 +69,16 @@ class ToolRegistry:
                 except Exception:
                     return f"Error: Failed to parse tool arguments as JSON: {arguments}"
             
+            from core.security import tool_execution_policy
+            allowed, policy_message = tool_execution_policy(name, arguments)
+            if not allowed:
+                return f"SECURITY POLICY: {policy_message}"
+
             # Execute tool function
             result = self.tools[name]["execute"](**arguments)
             return str(result)
         except TypeError as e:
             return f"Error: Invalid arguments for tool '{name}'. Detail: {e}"
         except Exception as e:
-            import traceback
-            return f"Error: Exception occurred while executing tool '{name}': {e}\n{traceback.format_exc()}"
+            from core.privacy import redact_sensitive
+            return f"Error: Tool '{name}' failed: {redact_sensitive(e)}"

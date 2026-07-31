@@ -1,0 +1,575 @@
+"use strict";
+
+const state = {
+  csrf: "",
+  bootstrap: null,
+  cases: [],
+  templates: [],
+  selectedMatter: null,
+  status: null,
+  notifiedJobs: new Set(),
+};
+
+const $ = (selector) => document.querySelector(selector);
+const $$ = (selector) => Array.from(document.querySelectorAll(selector));
+
+function node(tag, className, text) {
+  const element = document.createElement(tag);
+  if (className) element.className = className;
+  if (text !== undefined && text !== null) element.textContent = String(text);
+  return element;
+}
+
+function toast(message, isError = false) {
+  const item = node("div", `toast${isError ? " error" : ""}`, message);
+  $("#toast-region").append(item);
+  window.setTimeout(() => item.remove(), 5500);
+}
+
+function getAccessToken() {
+  return window.sessionStorage.getItem("aimaos_access_token") || "";
+}
+
+async function apiFetch(path, options = {}) {
+  const request = { ...options };
+  request.method = (request.method || "GET").toUpperCase();
+  request.headers = new Headers(request.headers || {});
+  const token = getAccessToken();
+  if (token) request.headers.set("X-AIMAOS-Token", token);
+  if (request.method !== "GET") {
+    request.headers.set("Content-Type", "application/json");
+    request.headers.set("X-AIMAOS-CSRF", state.csrf);
+  }
+
+  const response = await fetch(path, request);
+  let payload = null;
+  if ((response.headers.get("content-type") || "").includes("application/json")) {
+    payload = await response.json();
+  }
+  if (response.status === 401) {
+    const dialog = $("#auth-dialog");
+    if (!dialog.open) dialog.showModal();
+    throw new Error("Authentication required");
+  }
+  if (!response.ok) {
+    const message = payload?.error?.message || `Request failed with status ${response.status}`;
+    throw new Error(message);
+  }
+  return payload;
+}
+
+function showView(viewName) {
+  $$(".view").forEach((view) => {
+    const active = view.id === `view-${viewName}`;
+    view.hidden = !active;
+    view.classList.toggle("active", active);
+  });
+  $$(".nav-button").forEach((button) => {
+    const active = button.dataset.viewTarget === viewName;
+    button.classList.toggle("active", active);
+    if (active) button.setAttribute("aria-current", "page");
+    else button.removeAttribute("aria-current");
+  });
+  $("#main-content").focus({ preventScroll: true });
+}
+
+function bindNavigation() {
+  $$('[data-view-target]').forEach((button) => {
+    button.addEventListener("click", () => showView(button.dataset.viewTarget));
+  });
+}
+
+function formatBytes(bytes) {
+  const value = Number(bytes || 0);
+  if (value < 1024) return `${value} B`;
+  if (value < 1024 * 1024) return `${(value / 1024).toFixed(1)} KB`;
+  return `${(value / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+function formatDate(value) {
+  if (!value) return "";
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? String(value) : date.toLocaleString();
+}
+
+function renderHealth() {
+  if (!state.status) return;
+  const daemon = state.status.daemon || {};
+  const responsive = Boolean(daemon.responsive);
+  $("#health-dot").className = `status-dot ${responsive ? "good" : "warn"}`;
+  $("#health-label").textContent = responsive ? "Office ready" : "Office service unavailable";
+  $("#daemon-metric").textContent = responsive ? "Ready" : "Check service";
+  $("#daemon-detail").textContent = daemon.current_task?.title
+    ? `${daemon.current_task.agent}: ${daemon.current_task.title}`
+    : `State: ${daemon.state || "unknown"}`;
+  const activeJobs = (state.status.jobs || []).filter((job) => ["queued", "running"].includes(job.status));
+  $("#active-metric").textContent = String((state.status.active_tasks || []).length + activeJobs.length);
+  $("#matter-metric").textContent = String(state.cases.length);
+  $("#completed-metric").textContent = String(state.status.completed_task_count || 0);
+}
+
+function statusTag(status) {
+  return node("span", `status-tag ${status || ""}`, String(status || "queued").replaceAll("_", " "));
+}
+
+function renderWork() {
+  const container = $("#work-list");
+  container.replaceChildren();
+  const activeTasks = (state.status?.active_tasks || []).map((task) => ({
+    title: task.title,
+    detail: `${task.assigned_agent || "Office"} · ${task.priority || "NORMAL"}`,
+    status: task.status,
+  }));
+  const jobs = (state.status?.jobs || []).slice(0, 12).map((job) => ({
+    title: job.title,
+    detail: job.error || `${job.kind} · ${formatDate(job.created_at)}`,
+    status: job.status,
+    job,
+  }));
+  const work = [...activeTasks, ...jobs].slice(0, 15);
+  if (!work.length) {
+    const empty = node("div", "empty-state");
+    empty.append(node("strong", "", "Nothing needs attention"), node("p", "", "The office queue is clear."));
+    container.append(empty);
+    return;
+  }
+  work.forEach((item) => {
+    const row = node("article", "work-item");
+    const copy = node("div");
+    copy.append(node("strong", "", item.title), node("p", "", item.detail));
+    row.append(copy, statusTag(item.status));
+    container.append(row);
+
+    if (item.job && ["completed", "failed", "interrupted"].includes(item.job.status)
+        && !state.notifiedJobs.has(item.job.job_id)) {
+      state.notifiedJobs.add(item.job.job_id);
+      if (item.job.status === "completed") toast(`${item.job.title} completed.`);
+      else toast(`${item.job.title}: ${item.job.error || item.job.status}`, true);
+    }
+  });
+}
+
+async function loadStatus() {
+  try {
+    state.status = await apiFetch("/api/status");
+    renderHealth();
+    renderWork();
+  } catch (error) {
+    if (error.message !== "Authentication required") {
+      $("#health-dot").className = "status-dot warn";
+      $("#health-label").textContent = "Status unavailable";
+    }
+  }
+}
+
+function renderMatterOptions() {
+  const select = $("#assistant-matter");
+  const current = select.value;
+  select.replaceChildren(new Option("General office question", ""));
+  state.cases.forEach((matter) => select.add(new Option(matter.client_name, matter.client_slug)));
+  if (state.cases.some((matter) => matter.client_slug === current)) select.value = current;
+}
+
+function renderMatterList() {
+  const container = $("#matter-list");
+  const query = $("#matter-search").value.trim().toLowerCase();
+  container.replaceChildren();
+  const visible = state.cases.filter((matter) => {
+    const search = `${matter.client_name} ${matter.matter_type || ""} ${matter.status || ""}`.toLowerCase();
+    return !query || search.includes(query);
+  });
+  if (!visible.length) {
+    container.append(node("p", "form-help", state.cases.length ? "No matching matters." : "No matters yet. Import a file to begin."));
+    return;
+  }
+  visible.forEach((matter) => {
+    const button = node("button", "matter-button");
+    button.type = "button";
+    if (matter.client_slug === state.selectedMatter) button.classList.add("active");
+    button.append(node("strong", "", matter.client_name), node("small", "", matter.matter_type || "Matter"));
+    button.addEventListener("click", () => selectMatter(matter.client_slug));
+    container.append(button);
+  });
+}
+
+async function loadCases() {
+  const payload = await apiFetch("/api/cases");
+  state.cases = payload.cases || [];
+  renderMatterList();
+  renderMatterOptions();
+  renderHealth();
+}
+
+function fileAction(label, handler) {
+  const button = node("button", "secondary-button", label);
+  button.type = "button";
+  button.addEventListener("click", handler);
+  return button;
+}
+
+async function downloadFile(slug, path, filename) {
+  try {
+    const headers = new Headers();
+    const token = getAccessToken();
+    if (token) headers.set("X-AIMAOS-Token", token);
+    const response = await fetch(`/api/files/download?slug=${encodeURIComponent(slug)}&path=${encodeURIComponent(path)}`, { headers });
+    if (!response.ok) throw new Error("Download failed");
+    const blob = await response.blob();
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = filename;
+    document.body.append(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(url);
+  } catch (error) {
+    toast(error.message, true);
+  }
+}
+
+async function openNativeFile(slug, path) {
+  try {
+    const payload = await apiFetch("/api/open_file", {
+      method: "POST",
+      body: JSON.stringify({ slug, path }),
+    });
+    toast(payload.message);
+  } catch (error) {
+    toast(error.message, true);
+  }
+}
+
+async function selectMatter(slug) {
+  try {
+    const payload = await apiFetch(`/api/case_file?slug=${encodeURIComponent(slug)}`);
+    state.selectedMatter = slug;
+    renderMatterList();
+    $("#matter-empty").hidden = true;
+    $("#matter-content").hidden = false;
+    $("#matter-detail-title").textContent = payload.case.client_name;
+    $("#matter-meta").textContent = `${payload.case.matter_type || "Matter"} · ${payload.case.status || "open"}`;
+    $("#matter-summary").textContent = payload.summary_md || "No summary available.";
+    $("#upload-client-name").value = payload.case.client_name;
+
+    const files = $("#matter-files");
+    files.replaceChildren();
+    if (!(payload.files || []).length) files.append(node("p", "form-help", "No files in this matter."));
+    (payload.files || []).forEach((file) => {
+      const row = node("article", "file-item");
+      const copy = node("div");
+      copy.append(node("strong", "", file.name), node("small", "", `${formatBytes(file.size)} · ${formatDate(file.modified_at)}`));
+      const actions = node("div", "file-actions");
+      actions.append(fileAction("Download", () => downloadFile(slug, file.path, file.name)));
+      if (state.bootstrap?.native_open_enabled) {
+        actions.append(fileAction("Open", () => openNativeFile(slug, file.path)));
+      }
+      row.append(copy, actions);
+      files.append(row);
+    });
+  } catch (error) {
+    toast(error.message, true);
+  }
+}
+
+function openUpload() {
+  $("#upload-form").hidden = false;
+  if (state.selectedMatter) {
+    const matter = state.cases.find((item) => item.client_slug === state.selectedMatter);
+    if (matter) $("#upload-client-name").value = matter.client_name;
+  }
+  $("#upload-client-name").focus();
+}
+
+function arrayBufferToBase64(buffer) {
+  const bytes = new Uint8Array(buffer);
+  const chunks = [];
+  for (let offset = 0; offset < bytes.length; offset += 0x8000) {
+    chunks.push(String.fromCharCode(...bytes.subarray(offset, offset + 0x8000)));
+  }
+  return window.btoa(chunks.join(""));
+}
+
+async function submitUpload(event) {
+  event.preventDefault();
+  const file = $("#upload-file").files[0];
+  const clientName = $("#upload-client-name").value.trim();
+  if (!file || !clientName) return;
+  const maxBytes = (state.bootstrap?.max_upload_mb || 25) * 1024 * 1024;
+  if (file.size > maxBytes) {
+    toast(`File exceeds the ${state.bootstrap?.max_upload_mb || 25} MB limit.`, true);
+    return;
+  }
+  const submit = event.submitter;
+  submit.disabled = true;
+  submit.textContent = "Saving…";
+  try {
+    const contentBase64 = arrayBufferToBase64(await file.arrayBuffer());
+    const payload = await apiFetch("/api/upload", {
+      method: "POST",
+      body: JSON.stringify({ client_name: clientName, file_name: file.name, content_base64: contentBase64 }),
+    });
+    toast(`File saved. Background review queued as ${payload.job_id}.`);
+    event.currentTarget.reset();
+    event.currentTarget.hidden = true;
+    await Promise.all([loadCases(), loadStatus()]);
+    if (payload.matter_slug) await selectMatter(payload.matter_slug);
+  } catch (error) {
+    toast(error.message, true);
+  } finally {
+    submit.disabled = false;
+    submit.textContent = "Save and review";
+  }
+}
+
+function renderTemplates() {
+  const select = $("#template-select");
+  select.replaceChildren(new Option("Choose a template", ""));
+  state.templates.forEach((template) => select.add(new Option(template.name, template.id)));
+}
+
+async function loadTemplates() {
+  const payload = await apiFetch("/api/templates");
+  state.templates = payload.templates || [];
+  renderTemplates();
+}
+
+function selectTemplate() {
+  const template = state.templates.find((item) => item.id === $("#template-select").value);
+  const description = $("#template-description");
+  const form = $("#document-form");
+  const fields = $("#document-fields");
+  description.replaceChildren();
+  fields.replaceChildren();
+  if (!template) {
+    form.hidden = true;
+    return;
+  }
+  description.append(node("p", "", template.description || "No template description is available."));
+  if (template.verification_status !== "verified") {
+    description.append(node(
+      "p",
+      "warning-note",
+      "Template provenance is incomplete. Verify the form and revision against an official source before use.",
+    ));
+  }
+  const provenance = [template.jurisdiction, template.revision && `Revision ${template.revision}`, template.last_reviewed_at && `Reviewed ${formatDate(template.last_reviewed_at)}`].filter(Boolean);
+  if (provenance.length) description.append(node("small", "", provenance.join(" · ")));
+  if (template.official_source) {
+    try {
+      const sourceUrl = new URL(template.official_source);
+      if (["http:", "https:"].includes(sourceUrl.protocol)) {
+        const link = node("a", "", "Official source");
+        link.href = sourceUrl.href;
+        link.target = "_blank";
+        link.rel = "noopener noreferrer";
+        description.append(link);
+      }
+    } catch (_) { /* Invalid metadata URL is intentionally not rendered. */ }
+  }
+  $("#document-form-title").textContent = template.name;
+  (template.fields || []).forEach((field) => {
+    const label = node("label", "", `${field.label}${field.required ? " *" : ""}`);
+    const input = document.createElement("input");
+    input.type = "text";
+    input.dataset.fieldName = field.name;
+    input.required = Boolean(field.required);
+    input.maxLength = 20000;
+    if (field.description) input.setAttribute("aria-description", field.description);
+    label.append(input);
+    if (field.description) label.append(node("small", "form-help", field.description));
+    fields.append(label);
+  });
+  form.hidden = false;
+}
+
+async function submitDocument(event) {
+  event.preventDefault();
+  const templateId = $("#template-select").value;
+  const context = {};
+  $$("#document-fields input").forEach((input) => { context[input.dataset.fieldName] = input.value; });
+  const submit = event.submitter;
+  submit.disabled = true;
+  submit.textContent = "Queueing…";
+  try {
+    const payload = await apiFetch("/api/generate_doc", {
+      method: "POST",
+      body: JSON.stringify({ template: templateId, context }),
+    });
+    toast(`Draft generation queued as ${payload.job_id}.`);
+    showView("home");
+    await loadStatus();
+  } catch (error) {
+    toast(error.message, true);
+  } finally {
+    submit.disabled = false;
+    submit.textContent = "Generate draft";
+  }
+}
+
+function addMessage(kind, author, text) {
+  const item = node("article", `message ${kind === "user" ? "user-message" : "assistant-message"}`);
+  item.append(node("strong", "", author), node("p", "", text));
+  $("#assistant-messages").append(item);
+  item.scrollIntoView({ block: "nearest" });
+  return item;
+}
+
+async function waitForJob(jobId, placeholder) {
+  const deadline = Date.now() + 30 * 60 * 1000;
+  while (Date.now() < deadline) {
+    const payload = await apiFetch(`/api/jobs?id=${encodeURIComponent(jobId)}`);
+    const job = payload.job;
+    if (["completed", "failed", "interrupted"].includes(job.status)) {
+      if (job.status === "completed") {
+        const message = job.result?.message || job.result?.draft_notice || JSON.stringify(job.result, null, 2);
+        placeholder.querySelector("p").textContent = message || "The job completed.";
+      } else {
+        placeholder.querySelector("p").textContent = job.error || `The job ${job.status}.`;
+      }
+      await Promise.all([loadStatus(), loadCases()]);
+      return job;
+    }
+    placeholder.querySelector("p").textContent = `Working… (${job.status})`;
+    await new Promise((resolve) => window.setTimeout(resolve, 1800));
+  }
+  throw new Error("The job is still running. Check the Home queue for its status.");
+}
+
+async function submitAssistant(event) {
+  event.preventDefault();
+  const input = $("#assistant-input");
+  const message = input.value.trim();
+  if (!message) return;
+  const matterSlug = $("#assistant-matter").value || null;
+  addMessage("user", "You", message);
+  input.value = "";
+  const placeholder = addMessage("assistant", "AIMAOS", "Queueing your request…");
+  event.submitter.disabled = true;
+  try {
+    const payload = await apiFetch("/api/chat", {
+      method: "POST",
+      body: JSON.stringify({ message, matter_slug: matterSlug }),
+    });
+    await waitForJob(payload.job_id, placeholder);
+  } catch (error) {
+    placeholder.querySelector("p").textContent = error.message;
+    toast(error.message, true);
+  } finally {
+    event.submitter.disabled = false;
+  }
+}
+
+async function attachMatterNote() {
+  const matterSlug = $("#assistant-matter").value;
+  const note = $("#assistant-input").value.trim();
+  if (!matterSlug) {
+    toast("Choose a matter before attaching a note.", true);
+    return;
+  }
+  if (!note) {
+    toast("Enter the note first.", true);
+    return;
+  }
+  try {
+    await apiFetch("/api/voice_scribe", {
+      method: "POST",
+      body: JSON.stringify({ matter_slug: matterSlug, text: note }),
+    });
+    $("#assistant-input").value = "";
+    toast("Note attached to the matter.");
+  } catch (error) {
+    toast(error.message, true);
+  }
+}
+
+async function triggerQuickAction(action) {
+  try {
+    const payload = await apiFetch("/api/quick_action", {
+      method: "POST",
+      body: JSON.stringify({ action }),
+    });
+    toast(`Task queued as ${payload.task_id}.`);
+    await loadStatus();
+  } catch (error) {
+    toast(error.message, true);
+  }
+}
+
+function renderSettings() {
+  if (!state.bootstrap) return;
+  $("#beta-version").textContent = `Public beta ${state.bootstrap.version}`;
+  $("#setting-native-open").textContent = state.bootstrap.native_open_enabled ? "Enabled locally" : "Disabled";
+  $("#setting-developer").textContent = state.bootstrap.developer_mode ? "Enabled" : "Disabled";
+  $("#setting-raw-logs").textContent = state.bootstrap.privacy.raw_tool_logs ? "Enabled" : "Disabled";
+  $("#setting-retention").textContent = `${state.bootstrap.privacy.retention_days} days`;
+  $("#clone-form").hidden = !state.bootstrap.developer_mode;
+  $("#upload-help").textContent = `Files up to ${state.bootstrap.max_upload_mb} MB are stored locally and reviewed as a background job.`;
+}
+
+async function submitClone(event) {
+  event.preventDefault();
+  try {
+    const payload = await apiFetch("/api/clone_agent", {
+      method: "POST",
+      body: JSON.stringify({ agent_name: $("#clone-name").value, role: $("#clone-role").value }),
+    });
+    toast(payload.message);
+    event.currentTarget.reset();
+  } catch (error) {
+    toast(error.message, true);
+  }
+}
+
+async function bootstrap() {
+  const payload = await apiFetch("/api/bootstrap");
+  state.bootstrap = payload;
+  state.csrf = payload.csrf_token;
+  renderSettings();
+  if (!payload.setup_complete) toast("Setup is incomplete. Run the setup wizard before starting office work.", true);
+  await Promise.all([loadCases(), loadTemplates(), loadStatus()]);
+}
+
+function bindEvents() {
+  bindNavigation();
+  $("#refresh-status").addEventListener("click", loadStatus);
+  $("#matter-search").addEventListener("input", renderMatterList);
+  $("#new-intake-button").addEventListener("click", openUpload);
+  $("#add-file-button").addEventListener("click", openUpload);
+  $("#close-upload").addEventListener("click", () => { $("#upload-form").hidden = true; });
+  $("#upload-form").addEventListener("submit", submitUpload);
+  $("#template-select").addEventListener("change", selectTemplate);
+  $("#document-form").addEventListener("submit", submitDocument);
+  $("#assistant-form").addEventListener("submit", submitAssistant);
+  $("#attach-note-button").addEventListener("click", attachMatterNote);
+  $("#matter-assistant-button").addEventListener("click", () => {
+    $("#assistant-matter").value = state.selectedMatter || "";
+    showView("assistant");
+    $("#assistant-input").focus();
+  });
+  $$("[data-quick-action]").forEach((button) => {
+    button.addEventListener("click", () => triggerQuickAction(button.dataset.quickAction));
+  });
+  $("#clone-form").addEventListener("submit", submitClone);
+  $("#auth-form").addEventListener("submit", async (event) => {
+    event.preventDefault();
+    window.sessionStorage.setItem("aimaos_access_token", $("#auth-token").value);
+    try {
+      await bootstrap();
+      $("#auth-dialog").close();
+      $("#auth-token").value = "";
+    } catch (error) {
+      toast(error.message, true);
+    }
+  });
+}
+
+document.addEventListener("DOMContentLoaded", async () => {
+  bindEvents();
+  try {
+    await bootstrap();
+  } catch (error) {
+    if (error.message !== "Authentication required") toast(error.message, true);
+  }
+  window.setInterval(loadStatus, 4000);
+});

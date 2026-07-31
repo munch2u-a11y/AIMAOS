@@ -1,7 +1,7 @@
 agent:
   name: Quinn
   role: Researcher & Intelligence Reporter
-  model: qwen3.5:2b
+  model: qwen3.5:4b
 paths:
   reports: workspace/reports
   memory: workspace/.memory

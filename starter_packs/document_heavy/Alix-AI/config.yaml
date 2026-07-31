@@ -1,6 +1,6 @@
 llm:
   backend: ollama
-  model: qwen3.5:2b
+  model: qwen3.5:4b
   ollama_host: http://localhost:11434
   llamacpp_host: http://localhost:8080
   temperature: 0.1
@@ -15,7 +15,7 @@ paths:
 watcher:
   enabled: true
   poll_interval: 5.0
-  watch_downloads: true
+  watch_downloads: false
 email:
   enabled: false
   imap_server: ''
@@ -28,4 +28,4 @@ mrag:
 default_output_format: docx
 agent:
   name: Alix
-  model: qwen3.5:2b
+  model: qwen3.5:4b

@@ -1,35 +1,32 @@
 llm:
   backend: ollama
   ollama_host: http://localhost:11434
-  default_model: qwen3.5:2b
+  default_model: qwen3.5:4b
   temperature: 0.2
   max_tokens: 1024
 agents:
   Alix:
     role: Document Production & Keeper Agent
-    model: qwen3.5:2b
+    model: qwen3.5:4b
   Kai:
     role: Digital Librarian & Task Archiver
-    model: qwen3.5:2b
+    model: qwen3.5:4b
   Marley:
     role: Office Manager & Priority Scheduler
-    model: qwen3.5:2b
+    model: qwen3.5:4b
   Quinn:
     role: Research & Legal Intelligence Reporter
-    model: qwen3.5:2b
+    model: qwen3.5:4b
     research_model: gemma3:4b
   Zoe:
     role: DevOps Maintenance Engineer & Synthesizer
-    model: qwen3.5:2b
+    model: qwen3.5:4b
   Finn:
     role: Security Officer & Comms Gateway
     model: qwen3.5:0.8b
   Rae:
     role: Agent Maker & Workflow Cloner
-    model: qwen3.5:2b
-  Ztestclone:
-    role: Throwaway Cloning Smoke Test
-    model: qwen3.5:2b
+    model: qwen3.5:4b
 office:
   poll_interval_sec: 3.0
   max_tool_turns: 4
@@ -39,6 +36,55 @@ office:
   reflection_every_cycles: 12
   injection_max_tokens: 400
   idle_backoff_max_sec: 60.0
+ui:
+  host: 127.0.0.1
+  port: 8080
+  allow_lan: false
+  allow_native_open: true
+  developer_mode: false
+  max_upload_mb: 25
+  allowed_upload_extensions:
+  - .txt
+  - .md
+  - .csv
+  - .json
+  - .yaml
+  - .yml
+  - .rtf
+  - .pdf
+  - .doc
+  - .docx
+  - .xls
+  - .xlsx
+  - .png
+  - .jpg
+  - .jpeg
+  - .tif
+  - .tiff
+  - .wav
+  - .mp3
+  - .m4a
+  - .webm
+storage:
+  # Add user-approved document roots here. The home directory is not implicit.
+  allowed_roots: []
+privacy:
+  store_raw_tool_logs: false
+  inject_raw_memories: false
+  log_retention_days: 30
+security:
+  # Network reads may disclose queries or document-derived terms to third parties.
+  allow_network_tools: false
+  allow_external_mutations: false
+  allow_shell_tools: false
+  # Prevent untrusted document text from autonomously creating agent tasks.
+  allow_document_delegation: false
+  # Destructive or source-modifying maintenance tools are excluded from beta workflows.
+  disabled_tools:
+  - backup_records
+  - convert_court_templates
+  - manage_skills
+  - review_templates
 email:
   security_mode: READ_ONLY
   approved_recipients: []

@@ -1,0 +1,32 @@
+name: public-beta-ci
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.11", "3.12", "3.13"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: pip
+      - name: Install dependencies
+        run: python -m pip install -r requirements-dev.txt
+      - name: Deployment diagnostics
+        run: python doctor.py
+      - name: Python release tests
+        run: python -m pytest
+      - name: Python syntax
+        run: python -m compileall -q core starter_packs shared_tools aimaos_ui.py doctor.py setup.py
+      - name: Browser JavaScript syntax
+        run: node --check ui/static/app.js

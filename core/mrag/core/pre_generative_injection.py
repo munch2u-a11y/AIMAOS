@@ -209,6 +209,7 @@ class PreGenerativeInjector:
         token_budget_fraction: float = 0.15,
         max_injected_tokens: Optional[int] = None,
         concept_expansions: Optional[Dict[str, List[str]]] = None,
+        allowed_categories: Optional[List[str]] = None,
     ):
         """max_injected_tokens: explicit hard ceiling on injected content
         tokens. Default None means NO fixed constant: the budget is fully
@@ -223,6 +224,7 @@ class PreGenerativeInjector:
         self.top_k_candidates = top_k_candidates
         self.token_budget_fraction = token_budget_fraction
         self.max_injected_tokens = max_injected_tokens
+        self.allowed_categories = set(allowed_categories) if allowed_categories else None
         # Three layers, increasing priority: built-in defaults, expansions
         # learned automatically from consolidated facts (see
         # BeliefStore.learn_concept_expansion), and explicit user overrides.
@@ -823,6 +825,7 @@ class PreGenerativeInjector:
         all_beliefs = [
             b for b in self._belief_store.get_all_beliefs_flat()
             if b.get("_category") != "concepts"
+            and (self.allowed_categories is None or b.get("_category") in self.allowed_categories)
         ]
 
         if not all_beliefs:

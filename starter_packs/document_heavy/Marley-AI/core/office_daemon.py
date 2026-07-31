@@ -37,6 +37,24 @@ from core.comms.office_board import OfficeBoard
 from core.office_agent import load_office_config
 
 logger = logging.getLogger("aimaos.office_daemon")
+DAEMON_STATUS_PATH = os.path.join(AIMAOS_ROOT, "comms", "daemon_status.json")
+
+
+def write_daemon_status(state, *, cycle=0, current_task=None, error=None):
+    """Publish an atomic, content-free daemon heartbeat for the dashboard."""
+    os.makedirs(os.path.dirname(DAEMON_STATUS_PATH), exist_ok=True)
+    payload = {
+        "state": state,
+        "pid": os.getpid(),
+        "cycle": cycle,
+        "current_task": current_task,
+        "error": str(error)[:1000] if error else None,
+        "last_heartbeat": datetime.now().isoformat(),
+    }
+    temp_path = DAEMON_STATUS_PATH + f".{os.getpid()}.tmp"
+    with open(temp_path, "w", encoding="utf-8") as handle:
+        json.dump(payload, handle, indent=2)
+    os.replace(temp_path, DAEMON_STATUS_PATH)
 
 # Preferred clock-in order only — never a requirement. Which agents actually
 # exist depends on the starter pack the operator set up plus any Rae-cloned
@@ -89,6 +107,12 @@ class OfficeDaemon:
         self.cycle = 0
         self._reflection_rotation = 0
         self._running = True
+        try:
+            from core.privacy import prune_runtime_records
+            print(f"[Office Daemon] Privacy housekeeping: {prune_runtime_records(AIMAOS_ROOT)}")
+        except Exception as exc:
+            logger.warning("Privacy housekeeping failed: %s", exc)
+        write_daemon_status("starting", cycle=self.cycle)
 
     # ------------------------------------------------------------ hygiene
     def requeue_expired_and_failed(self):
@@ -198,6 +222,7 @@ class OfficeDaemon:
         """One office pulse: hygiene -> inboxes -> Marley dispatch -> the
         assigned agent's real turn -> periodic identity reflection."""
         self.cycle += 1
+        write_daemon_status("polling", cycle=self.cycle)
         print(f"\n--- OFFICE PULSE {self.cycle} [{datetime.now().strftime('%H:%M:%S')}] ---")
 
         self.requeue_expired_and_failed()
@@ -209,6 +234,9 @@ class OfficeDaemon:
             agent_name = turn["assigned_agent"]
             agent = self.agents.get(agent_name)
             print(f"  [Marley] Turn -> {agent_name}: '{turn['title']}' (priority {turn['priority']})")
+            write_daemon_status("working", cycle=self.cycle, current_task={
+                "id": turn.get("task_id"), "title": turn.get("title"), "agent": agent_name,
+            })
             if agent is None:
                 # Task addressed to a clone/unknown agent Marley didn't hire.
                 self.board.update_task_status(turn["task_id"], "failed",
@@ -231,6 +259,7 @@ class OfficeDaemon:
 
         if self.reflection_every and self.cycle % self.reflection_every == 0:
             self.run_reflection_turn()
+        write_daemon_status("idle" if self._consecutive_idle_cycles else "ready", cycle=self.cycle)
 
     def _next_sleep_interval(self):
         """Real work keeps the office on its normal pulse. An idle office
@@ -258,6 +287,7 @@ class OfficeDaemon:
             logger.warning(f"[{name}] reflection failed: {e}")
 
     def run(self, max_cycles=None):
+        write_daemon_status("ready", cycle=self.cycle)
         print("====================================================================")
         print("AIMAOS OFFICE DAEMON — Marley has the floor")
         print(f"Roster: {', '.join(self.agents)} | pulse every {self.poll_interval}s")
@@ -276,6 +306,7 @@ class OfficeDaemon:
             except Exception as e:
                 logger.exception(f"Office pulse error: {e}")
                 print(f"  [Daemon] Pulse error (office continues): {e}")
+                write_daemon_status("degraded", cycle=self.cycle, error=e)
             if max_cycles is not None and self.cycle >= max_cycles:
                 print(f"\n[Office Daemon] Reached max cycles ({max_cycles}); clocking out.")
                 break
@@ -288,6 +319,7 @@ class OfficeDaemon:
             except Exception:
                 pass
         print("[Office Daemon] Office closed.")
+        write_daemon_status("stopped", cycle=self.cycle)
 
 
 def main(argv=None):

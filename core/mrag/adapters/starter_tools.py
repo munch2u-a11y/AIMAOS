@@ -577,6 +577,12 @@ def build_notes_group() -> ToolGroup:
 
 def run_command(command: str) -> str:
     """Run a shell command in the files root; stdout+stderr, clipped."""
+    try:
+        from core.security import shell_tools_enabled
+        if not shell_tools_enabled():
+            return "SECURITY POLICY: shell commands are disabled."
+    except ImportError:
+        return "SECURITY POLICY: shell policy is unavailable."
     result = subprocess.run(
         command, shell=True, cwd=_files_root(),
         capture_output=True, text=True)

@@ -13,7 +13,6 @@ domains:
     - Alix-AI/tools/populate_template.py
     - Alix-AI/tools/write_document.py
     - Alix-AI/tools/dispatch_document.py
-    - Alix-AI/tools/review_templates.py
     - shared_tools/edit_image.py
     - shared_tools/assemble_pdf.py
     - Alix-AI/tools/catalog_templates.py
@@ -21,7 +20,6 @@ domains:
     description: Manage persistent production memory, ingest reference documents, and run automation skills.
     tools:
     - Alix-AI/tools/manage_memory.py
-    - Alix-AI/tools/manage_skills.py
     - Alix-AI/tools/ingest_document.py
     - Alix-AI/tools/run_script.py
   office_comms:

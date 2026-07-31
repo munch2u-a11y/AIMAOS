@@ -3,6 +3,7 @@ import csv
 import yaml
 import sys
 import subprocess
+from core.security import require_allowed_path, resolve_within
 
 # Optional imports handled gracefully
 try:
@@ -60,7 +61,7 @@ def get_config():
 
 def resolve_path(file_name, directory_type):
     if os.path.isabs(file_name):
-        return file_name
+        return require_allowed_path(file_name)
         
     config = get_config()
     paths = config.get("paths", {})
@@ -71,7 +72,7 @@ def resolve_path(file_name, directory_type):
         "skills": "./skills"
     }
     dir_path = paths.get(directory_type, fallback_paths.get(directory_type, "./workspace/inbox"))
-    return os.path.join(dir_path, file_name)
+    return resolve_within(dir_path, file_name, must_exist=True)
 
 def read_pdf(path):
     if not fitz:

@@ -38,6 +38,9 @@ class OfficeSQLite:
     def get_connection(self):
         conn = sqlite3.connect(self.db_path, timeout=30.0)
         conn.row_factory = sqlite3.Row
+        conn.execute("PRAGMA foreign_keys = ON")
+        conn.execute("PRAGMA journal_mode = WAL")
+        conn.execute("PRAGMA busy_timeout = 30000")
         return conn
 
     def _init_tables(self):
@@ -86,6 +89,24 @@ class OfficeSQLite:
                     modified_at TEXT
                 )
             """)
+
+            # 4. Dashboard Jobs Table.  Model-backed work runs outside HTTP
+            # request threads and reports honest progress through this table.
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS jobs (
+                    job_id TEXT PRIMARY KEY,
+                    kind TEXT NOT NULL,
+                    title TEXT NOT NULL,
+                    status TEXT NOT NULL DEFAULT 'queued',
+                    result_json TEXT,
+                    error TEXT,
+                    created_at TEXT NOT NULL,
+                    started_at TEXT,
+                    completed_at TEXT
+                )
+            """)
+            cursor.execute("CREATE INDEX IF NOT EXISTS idx_jobs_created ON jobs(created_at DESC)")
+            cursor.execute("CREATE INDEX IF NOT EXISTS idx_jobs_status ON jobs(status)")
             conn.commit()
 
     def _migrate_if_needed(self):
@@ -232,6 +253,91 @@ class OfficeSQLite:
             cursor = conn.cursor()
             cursor.execute(query, params)
             return [dict(r) for r in cursor.fetchall()]
+
+    def update_task_status(self, task_id, status, result=None):
+        now = datetime.now().isoformat()
+        with self.get_connection() as conn:
+            conn.execute(
+                "UPDATE tasks SET status = ?, description = COALESCE(?, description), updated_at = ? WHERE task_id = ?",
+                (status, result, now, task_id),
+            )
+            conn.commit()
+
+    # --- Dashboard Jobs Methods ---
+    def create_job(self, job_id, kind, title):
+        with self.get_connection() as conn:
+            conn.execute(
+                "INSERT INTO jobs (job_id, kind, title, status, created_at) VALUES (?, ?, ?, 'queued', ?)",
+                (job_id, kind, title, datetime.now().isoformat()),
+            )
+            conn.commit()
+
+    def update_job(self, job_id, *, status=None, result=None, error=None,
+                   started_at=None, completed_at=None):
+        updates = []
+        values = []
+        if status is not None:
+            updates.append("status = ?")
+            values.append(status)
+        if result is not None:
+            updates.append("result_json = ?")
+            values.append(json.dumps(result, default=str))
+        if error is not None:
+            updates.append("error = ?")
+            values.append(str(error)[:4000])
+        if started_at is not None:
+            updates.append("started_at = ?")
+            values.append(started_at)
+        if completed_at is not None:
+            updates.append("completed_at = ?")
+            values.append(completed_at)
+        if not updates:
+            return
+        values.append(job_id)
+        with self.get_connection() as conn:
+            conn.execute(f"UPDATE jobs SET {', '.join(updates)} WHERE job_id = ?", values)
+            conn.commit()
+
+    @staticmethod
+    def _decode_job(row):
+        if not row:
+            return None
+        job = dict(row)
+        raw_result = job.pop("result_json", None)
+        if raw_result:
+            try:
+                job["result"] = json.loads(raw_result)
+            except json.JSONDecodeError:
+                job["result"] = raw_result
+        else:
+            job["result"] = None
+        return job
+
+    def get_job(self, job_id):
+        with self.get_connection() as conn:
+            row = conn.execute("SELECT * FROM jobs WHERE job_id = ?", (job_id,)).fetchone()
+        return self._decode_job(row)
+
+    def list_jobs(self, limit=50):
+        limit = max(1, min(int(limit), 200))
+        with self.get_connection() as conn:
+            rows = conn.execute(
+                "SELECT * FROM jobs ORDER BY created_at DESC LIMIT ?", (limit,)
+            ).fetchall()
+        return [self._decode_job(row) for row in rows]
+
+    def interrupt_unfinished_jobs(self):
+        """Work closures cannot survive a process restart; report that fact."""
+        with self.get_connection() as conn:
+            conn.execute(
+                """UPDATE jobs
+                   SET status = 'interrupted',
+                       error = COALESCE(error, 'Application restarted before this job completed.'),
+                       completed_at = ?
+                   WHERE status IN ('queued', 'running')""",
+                (datetime.now().isoformat(),),
+            )
+            conn.commit()
 
 
 if __name__ == "__main__":

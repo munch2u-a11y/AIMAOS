@@ -56,7 +56,12 @@ class OfficeBoard:
         return self._default_board()
 
     def _locked_mutation(self, mutate_fn):
-        """Re-reads the board under an exclusive lock, applies mutate_fn, writes back, and syncs to SQLite."""
+        """Re-read, mutate and persist the compatibility board atomically.
+
+        SQLite receives both active and completed state.  The JSON board is
+        retained during the beta for compatibility with existing agents, but
+        database sync failures are logged instead of silently hidden.
+        """
         with open(OFFICE_BOARD_LOCK, "a+") as lock_f:
             fcntl.flock(lock_f, fcntl.LOCK_EX)
             try:
@@ -67,7 +72,9 @@ class OfficeBoard:
                 try:
                     from core.db.office_sqlite import OfficeSQLite
                     db = OfficeSQLite()
-                    for t in self.board.get("active_tasks", []):
+                    all_tasks = (self.board.get("active_tasks", [])
+                                 + self.board.get("completed_tasks", []))
+                    for t in all_tasks:
                         db.upsert_task(
                             task_id=t.get("id") or t.get("task_id"),
                             title=t.get("title", "Untitled"),
@@ -76,8 +83,8 @@ class OfficeBoard:
                             priority=t.get("priority", "NORMAL"),
                             status=t.get("status", "queued")
                         )
-                except Exception:
-                    pass
+                except Exception as exc:
+                    logger.exception("Could not synchronize Office Board to SQLite: %s", exc)
                 return result
             finally:
                 fcntl.flock(lock_f, fcntl.LOCK_UN)
