@@ -2,7 +2,7 @@
 
 ## Executive Summary
 
-**AIMAOS** (*AI Multi-Agent Office Suite Operating System*) is an autonomous, 100% offline, model-agnostic multi-agent desktop operating suite. It is engineered to automate legal case management, document production, client folder organization, and administrative task coordination for small offices operating on budget local hardware.
+**AIMAOS** (*AI Multi-Agent Office Suite Operating System*) is an autonomous, 100% offline, model-agnostic multi-agent desktop operating suite. It is engineered to automate client case management, document production, folder organization, in-depth research, and administrative task coordination for small offices operating on budget local hardware.
 
 Rather than relying on massive static system prompts or single-agent execution loops that stuff thousands of tokens into a single local prompt window, AIMAOS orchestrates specialized mini-agents running isolated single-thought turn loops, collaborating through an offline file-queue IPC bus, a central relational SQLite database kernel, and an Office Board bulletin system.
 
@@ -28,7 +28,7 @@ Alix-AI/workspace/output/
 ### Key Technical Operations of `CaseAgent`:
 1. **Living Markdown Synchronization (`CLIENT_FILE.md`)**: On each review turn, `CaseAgent` evaluates directory changes and updates `CLIENT_FILE.md` with:
    - **Status Summary**: High-level synthesis of case progress, recent filings, and active discovery state.
-   - **Timelines & Court Deadlines**: Hearing dates and filing milestones extracted into structured date strings.
+   - **Timelines & Project Deadlines**: Key milestone dates, hearing dates, and deadlines extracted into structured date strings.
    - **To-Do & Required Document Checklists**: Explicit `[ ] Pending` vs `[x] Received` itemizations.
    - **Activity Log**: Chronological audit trail of all file ingestions and reviews.
 2. **Context Isolation**: Memory is stored inside `.case_agent/mrag_data/` within that specific client's folder. Facts from Client A never contaminate Client B's prompt window or pollute global roster context windows.
@@ -70,7 +70,7 @@ AIMAOS combines structured relational database integrity with semantic vector re
 ├─────────────────────────────────────────────────────────────────────────┤
 │                                                                         │
 │  1. STRUCTURED RELATIONAL CORE (SQLite — comms/office_database.sqlite)   │
-│     • Manages cases, active task queues, and legal template catalogs    │
+│     • Manages cases, active task queues, and document template catalogs │
 │     • Guarantees atomic row locking, zero data corruption, & fast SQL   │
 │     • Synchronizes state to CLIENT_FILE.md for staff inspection         │
 │                                                                         │
@@ -92,11 +92,11 @@ AIMAOS combines structured relational database integrity with semantic vector re
 | **Document Producer & Keeper** | `Alix` (Default) | Jinja2 Word template rendering, TOC OpenXML injection, PDF compilation, template cataloger (`catalog_templates.py`). |
 | **Digital Librarian & Archiver** | `Kai` (Default) | External drive scanner (`drive_ingestion.py`), client record deduplication, task execution trace archival. |
 | **Office Manager & Scheduler** | `Marley` (Default) | Autonomous office daemon pulse loop (`office_daemon.py`), priority turn scheduling (`CRITICAL`, `HIGH`, `NORMAL`, `BACKGROUND`), load balancing. |
-| **Legal & Statutory Researcher** | `Quinn` (Default) | Statutory research, Florida Rules of Civil & Family Procedure, memorandum writing. |
+| **Domain & Subject Researcher** | `Quinn` (Default) | In-depth subject research, policy & regulatory analysis, procedural rule verification, briefing report synthesis. |
 | **DevOps Engineer & Synthesizer** | `Zoe` (Default) | Task trace analysis, Hermes operational improvement report synthesis, performance bottleneck detection. |
 | **Security Officer & Comms Gateway** | `Finn` (Default) | Security triage, sender permission checks, hardware-enforced email security policies (`READ_ONLY`, `WHITELIST_ONLY`), Voice Scribe audio dictation gateway. |
 | **Agent Maker & Cloner** | `Rae` (Default) | Workspace cloner (`clone_agent.py`), fully integrating new clones into main config, IPC bus queues, and Office Board. |
-| **Dedicated Case Manager** | `CaseAgent` (Dynamic) | Per-client mini-agent. Generates `CLIENT_FILE.md` summaries, required-document checklists, court deadlines, and inherits category practice skills. |
+| **Dedicated Case Manager** | `CaseAgent` (Dynamic) | Per-client mini-agent. Generates `CLIENT_FILE.md` summaries, required-document checklists, project deadlines, and inherits practice area skills. |
 
 ---
 
