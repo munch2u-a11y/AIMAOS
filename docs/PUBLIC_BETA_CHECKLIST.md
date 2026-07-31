@@ -12,6 +12,7 @@
 ## Security and privacy
 
 - [ ] Dashboard is loopback-only or behind an authenticated TLS reverse proxy.
+- [ ] Native file opening is disabled for remote-browser deployments.
 - [ ] Developer, network, shell, external-mutation, and document-delegation flags are off.
 - [ ] Storage roots are narrow and approved.
 - [ ] Runtime account is unprivileged and uses encrypted storage and backups.

@@ -70,6 +70,7 @@ def test_ui_routes_use_background_jobs_for_model_work():
         for node in ast.walk(tree)
     )
     assert ".process_client_file(" not in source
+    assert "setup_required" in source
 
 
 def test_template_catalog_flags_incomplete_provenance():

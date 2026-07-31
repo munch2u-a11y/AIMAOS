@@ -30,6 +30,8 @@ AIMAOS_ROOT = os.environ.get("AIMAOS_ROOT") or _find_aimaos_root()
 import json
 import shutil
 from datetime import datetime
+from core.atomic_io import atomic_write_json, atomic_write_text
+from core.security import normalize_slug, require_allowed_path, resolve_within
 
 OUTPUT_ROOT = os.path.join(AIMAOS_ROOT, "Alix-AI/workspace/output")
 INDEX_PATH = os.path.join(OUTPUT_ROOT, ".client_index.json")
@@ -46,12 +48,11 @@ def _load_index():
 
 def _save_index(index):
     os.makedirs(OUTPUT_ROOT, exist_ok=True)
-    with open(INDEX_PATH, "w") as f:
-        json.dump(index, f, indent=2)
+    atomic_write_json(INDEX_PATH, index)
 
 
 def _slug(name):
-    return name.lower().replace(" ", "_")
+    return normalize_slug(name, label="client name")
 
 
 def client_exists(client_name):
@@ -68,11 +69,12 @@ def resolve_client_dir(client_name, category=None):
     slug = _slug(client_name)
     index = _load_index()
     if slug in index:
-        path = index[slug]
+        path = require_allowed_path(index[slug], must_exist=False)
         os.makedirs(path, exist_ok=True)
         return path
 
-    path = os.path.join(OUTPUT_ROOT, category, slug) if category else os.path.join(OUTPUT_ROOT, slug)
+    category_slug = normalize_slug(category, label="category") if category else None
+    path = resolve_within(OUTPUT_ROOT, category_slug, slug) if category_slug else resolve_within(OUTPUT_ROOT, slug)
     os.makedirs(path, exist_ok=True)
     index[slug] = path
     _save_index(index)
@@ -145,10 +147,8 @@ from core.db.office_sqlite import OfficeSQLite
 def _save_state(client_name, state):
     state["last_updated"] = datetime.now().strftime("%Y-%m-%d %H:%M")
     path = resolve_client_dir(client_name)
-    with open(_state_path(client_name), "w") as f:
-        json.dump(state, f, indent=2)
-    with open(_md_path(client_name), "w") as f:
-        f.write(_render_markdown(state))
+    atomic_write_json(_state_path(client_name), state)
+    atomic_write_text(_md_path(client_name), _render_markdown(state))
     try:
         db = OfficeSQLite()
         db.upsert_case(
@@ -282,11 +282,12 @@ def move_client_dir(client_name, new_category):
     index = _load_index()
     if slug not in index:
         return None
-    old_path = index[slug]
+    old_path = require_allowed_path(index[slug])
     if not os.path.isdir(old_path):
         return None
 
-    new_path = os.path.join(OUTPUT_ROOT, new_category, slug)
+    new_category = normalize_slug(new_category, label="category")
+    new_path = resolve_within(OUTPUT_ROOT, new_category, slug)
     if os.path.abspath(new_path) == os.path.abspath(old_path):
         return old_path
 

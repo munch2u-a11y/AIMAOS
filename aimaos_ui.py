@@ -18,8 +18,10 @@ import logging
 import mimetypes
 import os
 import shutil
+import signal
 import subprocess
 import sys
+import threading
 import time
 import uuid
 import webbrowser
@@ -29,6 +31,7 @@ from pathlib import Path
 from urllib.parse import parse_qs, urlparse
 
 import yaml
+from core.atomic_io import atomic_write_text
 
 
 def _find_aimaos_root() -> str:
@@ -69,6 +72,7 @@ APP_VERSION = __version__
 CSRF_TOKEN = generate_csrf_token()
 STARTED_AT = datetime.now().isoformat()
 logger = logging.getLogger("aimaos.ui")
+NOTES_LOCK = threading.Lock()
 
 
 def _is_loopback(host: str) -> bool:
@@ -91,6 +95,14 @@ def _output_root() -> str:
     root = os.path.join(AIMAOS_ROOT, "Alix-AI", "workspace", "output")
     os.makedirs(root, exist_ok=True)
     return root
+
+
+def _setup_complete() -> bool:
+    required_agents = {"Alix", "Kai", "Marley", "Finn"}
+    return all(
+        os.path.isfile(os.path.join(AIMAOS_ROOT, f"{name}-AI", "core", "agent.py"))
+        for name in required_agents
+    ) and os.path.isdir(_templates_root())
 
 
 def _load_module(name: str, path: str):
@@ -295,8 +307,7 @@ def _write_case_summary(case_dir: str, client_name: str, review: dict, recent_fi
     if not deadlines:
         lines.append("- None identified. Confirm independently.")
     lines.append("")
-    with open(summary_path, "w", encoding="utf-8") as handle:
-        handle.write("\n".join(lines))
+    atomic_write_text(summary_path, "\n".join(lines))
     return summary_path
 
 
@@ -444,13 +455,12 @@ class AIMAOSUIHandler(SimpleHTTPRequestHandler):
             query = parse_qs(self.parsed_path.query)
             if path == "/api/bootstrap":
                 cfg = self.config
-                materialized = os.path.isdir(os.path.join(AIMAOS_ROOT, "Alix-AI"))
                 return self._send_json({
                     "status": "success",
                     "version": APP_VERSION,
                     "started_at": STARTED_AT,
                     "csrf_token": CSRF_TOKEN,
-                    "setup_complete": materialized,
+                    "setup_complete": _setup_complete(),
                     "developer_mode": developer_mode_enabled(cfg),
                     "native_open_enabled": bool(cfg.get("ui", {}).get("allow_native_open", True)),
                     "max_upload_mb": int(cfg.get("ui", {}).get("max_upload_mb", 25)),
@@ -565,6 +575,12 @@ class AIMAOSUIHandler(SimpleHTTPRequestHandler):
 
         try:
             data = self._read_json()
+            work_routes = {"/api/chat", "/api/upload", "/api/generate_doc", "/api/quick_action"}
+            if path in work_routes and not _setup_complete():
+                return self._error(
+                    409, "Setup is incomplete. Run the setup wizard before starting office work.",
+                    code="setup_required",
+                )
             if path == "/api/chat":
                 message = str(data.get("message", "")).strip()
                 if not message or len(message) > 10_000:
@@ -616,6 +632,8 @@ class AIMAOSUIHandler(SimpleHTTPRequestHandler):
                 saved_file = _unique_destination(matter_dir, filename)
                 with open(saved_file, "xb") as handle:
                     handle.write(raw)
+                if os.name == "posix":
+                    os.chmod(saved_file, 0o600)
                 OfficeSQLite().upsert_case(
                     slug, client_name, matter_dir, matter_type="Document Intake", category="general"
                 )
@@ -731,6 +749,14 @@ class AIMAOSUIHandler(SimpleHTTPRequestHandler):
                 file_path = _resolve_public_case_file(case_dir, rel_path, must_exist=True)
                 if not os.path.isfile(file_path):
                     raise SecurityValidationError("Only files can be opened in a system application.")
+                allowed_extensions = {
+                    str(item).lower() for item in (
+                        self.config.get("ui", {}).get("allowed_upload_extensions")
+                        or DEFAULT_UPLOAD_EXTENSIONS
+                    )
+                }
+                if os.path.splitext(file_path)[1].lower() not in allowed_extensions:
+                    raise SecurityValidationError("This file type cannot be opened from the dashboard.")
                 if sys.platform == "darwin":
                     opener = ["open", file_path]
                 elif os.name == "nt":
@@ -751,11 +777,19 @@ class AIMAOSUIHandler(SimpleHTTPRequestHandler):
                     raise SecurityValidationError("Note must be between 1 and 20,000 characters.")
                 case, case_dir = self._case_record(slug)
                 notes_path = resolve_within(case_dir, "MATTER_NOTES.md")
-                new_file = not os.path.exists(notes_path)
-                with open(notes_path, "a", encoding="utf-8") as handle:
-                    if new_file:
-                        handle.write("# Operator notes\n\n")
-                    handle.write(f"## {datetime.now().strftime('%Y-%m-%d %H:%M')}\n\n{note}\n\n")
+                with NOTES_LOCK:
+                    existing_notes = "# Operator notes\n\n"
+                    if os.path.isfile(notes_path):
+                        if os.path.getsize(notes_path) > 2_000_000:
+                            raise SecurityValidationError(
+                                "The matter notes file has reached its beta size limit; archive it before adding notes."
+                            )
+                        with open(notes_path, "r", encoding="utf-8", errors="replace") as handle:
+                            existing_notes = handle.read()
+                    atomic_write_text(
+                        notes_path,
+                        existing_notes + f"## {datetime.now().strftime('%Y-%m-%d %H:%M')}\n\n{note}\n\n",
+                    )
                 from core.case_agent import CaseAgent
                 agent = CaseAgent(case_dir, case.get("client_name", slug), category=case.get("category", "general"))
                 agent.record_experience(f"User-approved dictated note: {note}", category="memory", confidence=0.9)
@@ -796,6 +830,9 @@ class AIMAOSUIHandler(SimpleHTTPRequestHandler):
 
 
 def _start_daemon_process() -> subprocess.Popen | None:
+    if not _setup_complete():
+        print("[AIMAOS] Setup is incomplete; the office daemon was not started.")
+        return None
     status = _daemon_status()
     if status.get("responsive"):
         print("[AIMAOS] Office daemon is already responsive; not starting a duplicate.")
@@ -820,9 +857,13 @@ def launch_aimaos_ui(port=8080, host="127.0.0.1", open_browser=True, start_daemo
                 "Non-loopback access requires a TLS reverse proxy and AIMAOS_BEHIND_TLS_PROXY=1."
             )
 
-    daemon_process = _start_daemon_process() if start_daemon else None
     httpd = ThreadingHTTPServer((host, int(port)), AIMAOSUIHandler)
     httpd.daemon_threads = True
+    try:
+        daemon_process = _start_daemon_process() if start_daemon else None
+    except Exception:
+        httpd.server_close()
+        raise
     display_host = "localhost" if _is_loopback(host) else host
     url = f"http://{display_host}:{port}"
     print("=" * 68)
@@ -837,9 +878,21 @@ def launch_aimaos_ui(port=8080, host="127.0.0.1", open_browser=True, start_daemo
             webbrowser.open(url)
         except Exception:
             logger.warning("Could not open a browser automatically.")
+    previous_sigterm = None
+    if threading.current_thread() is threading.main_thread():
+        previous_sigterm = signal.getsignal(signal.SIGTERM)
+
+        def _stop_on_sigterm(_signum, _frame):
+            raise KeyboardInterrupt
+
+        signal.signal(signal.SIGTERM, _stop_on_sigterm)
     try:
         httpd.serve_forever()
+    except KeyboardInterrupt:
+        print("\n[AIMAOS] Stopping dashboard and managed office daemon.")
     finally:
+        if previous_sigterm is not None:
+            signal.signal(signal.SIGTERM, previous_sigterm)
         httpd.server_close()
         if daemon_process and daemon_process.poll() is None:
             daemon_process.terminate()
@@ -850,6 +903,8 @@ def launch_aimaos_ui(port=8080, host="127.0.0.1", open_browser=True, start_daemo
 
 
 def main(argv=None):
+    if os.name == "posix":
+        os.umask(0o077)
     cfg = load_security_config().get("ui", {})
     parser = argparse.ArgumentParser(description="AIMAOS local-first dashboard")
     parser.add_argument("--host", default=cfg.get("host", "127.0.0.1"))

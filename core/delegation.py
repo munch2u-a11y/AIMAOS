@@ -134,14 +134,20 @@ class ToolSubagent:
         Raw output storage is off by default for the public beta; a digest and
         length retain auditability without creating an indefinite PII copy.
         """
-        from core.privacy import privacy_safe_tool_record, redact_sensitive
+        from core.privacy import privacy_safe_tool_record, raw_tool_logs_enabled, redact_sensitive
+        from core.security import content_digest
         entry = {
             "timestamp": datetime.now().isoformat(),
             "agent": self.owner.name,
             "tool": self.name,
-            "directive": redact_sensitive(directive),
-            "arguments": json.loads(redact_sensitive(json.dumps(arguments, default=str))),
         }
+        if raw_tool_logs_enabled():
+            entry["directive"] = redact_sensitive(directive)
+            entry["arguments"] = json.loads(redact_sensitive(json.dumps(arguments, default=str)))
+        else:
+            entry["directive_sha256"] = content_digest(str(directive))
+            entry["directive_chars"] = len(str(directive))
+            entry["argument_keys"] = sorted(str(key) for key in arguments)
         entry.update(privacy_safe_tool_record(raw_output))
         path = os.path.join(self.log_dir,
                             f"{datetime.now().strftime('%Y%m%d_%H%M%S_%f')}_{self.name}.json")
@@ -217,10 +223,8 @@ class ToolSubagent:
         condensed = self._summarize_output(directive, raw)
 
         # The experience IS the identity: record how this use of the tool went.
-        from core.privacy import redact_sensitive
         self.owner.record_experience(
-            redact_sensitive(f"Used {self.name} with {json.dumps(arguments)[:160]} -> {outcome}. "
-                              f"Result gist: {str(condensed)[:180]}"),
+            f"Used {self.name} with fields {sorted(str(key) for key in arguments)}; outcome: {outcome}.",
             category="memory", confidence=0.6, source=f"tool_{self.name}")
 
         return f"{condensed}\n(tool audit record: {os.path.basename(log_path)})"

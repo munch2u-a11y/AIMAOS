@@ -13,7 +13,7 @@ ollama pull qwen3.5:0.8b
 .venv/bin/python3 doctor.py
 ```
 
-Dependency versions are pinned in `requirements.txt`. Re-run the doctor after configuration or model changes.
+Direct dependency intent is recorded in `requirements.txt`; reproducible runtime versions are pinned in `requirements.lock`. Re-run the doctor after configuration or model changes.
 
 ## 3. Review configuration
 
@@ -22,6 +22,7 @@ Before first use, check `aimaos_config.yaml`:
 - Leave `ui.host` on `127.0.0.1`.
 - Leave `ui.allow_lan` and `ui.developer_mode` false.
 - Add only required document directories to `storage.allowed_roots`.
+- Disable `ui.allow_native_open` when browser users are not physically using the AIMAOS host.
 - Confirm all network, mutation, shell, and document-delegation security flags remain false.
 - Confirm email is `READ_ONLY` with no approved recipients.
 - Select models that are actually installed and support tool calls where needed.

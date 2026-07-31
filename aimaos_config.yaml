@@ -66,20 +66,17 @@ ui:
   - .m4a
   - .webm
 storage:
-  # Add user-approved document roots here. The home directory is not implicit.
   allowed_roots: []
 privacy:
   store_raw_tool_logs: false
   inject_raw_memories: false
+  learn_from_matter_content: false
   log_retention_days: 30
 security:
-  # Network reads may disclose queries or document-derived terms to third parties.
   allow_network_tools: false
   allow_external_mutations: false
   allow_shell_tools: false
-  # Prevent untrusted document text from autonomously creating agent tasks.
   allow_document_delegation: false
-  # Destructive or source-modifying maintenance tools are excluded from beta workflows.
   disabled_tools:
   - backup_records
   - convert_court_templates

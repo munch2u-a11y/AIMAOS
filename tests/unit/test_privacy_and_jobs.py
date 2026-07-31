@@ -1,4 +1,5 @@
 import threading
+from datetime import datetime, timedelta
 
 from core.db.office_sqlite import OfficeSQLite
 from core.privacy import privacy_safe_tool_record, redact_sensitive
@@ -28,6 +29,18 @@ def test_job_storage_lifecycle_and_interruption(tmp_path):
     db.create_job("job_2", "assistant", "Question")
     db.interrupt_unfinished_jobs()
     assert db.get_job("job_2")["status"] == "interrupted"
+
+
+def test_runtime_history_retention_removes_expired_payloads(tmp_path):
+    db = OfficeSQLite(str(tmp_path / "office.sqlite"))
+    db.create_job("old_job", "assistant", "Old question")
+    old = (datetime.now() - timedelta(days=90)).isoformat()
+    with db.get_connection() as connection:
+        connection.execute("UPDATE jobs SET created_at = ? WHERE job_id = 'old_job'", (old,))
+        connection.commit()
+    removed = db.prune_runtime_history(30)
+    assert removed["jobs"] == 1
+    assert db.get_job("old_job") is None
 
 
 def test_sqlite_handles_parallel_job_writes(tmp_path):

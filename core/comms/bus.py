@@ -11,6 +11,8 @@ import time
 import glob
 import logging
 from datetime import datetime
+from core.atomic_io import atomic_write_json
+from core.security import validate_agent_name
 
 logger = logging.getLogger(__name__)
 
@@ -22,7 +24,7 @@ class AgentCompanyBus:
     Enables Alix, Kai, Marley, Quinn, Zoe, and clones to send, query, and receive messages.
     """
     def __init__(self, agent_name):
-        self.agent_name = agent_name
+        self.agent_name = validate_agent_name(agent_name)
         self.inbox_dir = os.path.join(COMMS_BASE_DIR, agent_name, "inbox")
         self.outbox_dir = os.path.join(COMMS_BASE_DIR, agent_name, "outbox")
         
@@ -31,6 +33,7 @@ class AgentCompanyBus:
 
     def send_message(self, recipient, action, payload):
         """Sends an inter-agent message to recipient's inbox."""
+        recipient = validate_agent_name(recipient)
         msg_id = f"msg_{datetime.now().strftime('%Y%m%d_%H%M%S_%f')}"
         recipient_inbox = os.path.join(COMMS_BASE_DIR, recipient, "inbox")
         os.makedirs(recipient_inbox, exist_ok=True)
@@ -47,13 +50,11 @@ class AgentCompanyBus:
 
         # Write to recipient inbox
         target_path = os.path.join(recipient_inbox, f"{msg_id}.json")
-        with open(target_path, "w") as f:
-            json.dump(envelope, f, indent=2)
+        atomic_write_json(target_path, envelope)
 
         # Write copy to sender outbox
         outbox_path = os.path.join(self.outbox_dir, f"{msg_id}.json")
-        with open(outbox_path, "w") as f:
-            json.dump(envelope, f, indent=2)
+        atomic_write_json(outbox_path, envelope)
 
         logger.info(f"[{self.agent_name}] Sent message {msg_id} to {recipient} (action: {action})")
         return msg_id
@@ -76,7 +77,7 @@ class AgentCompanyBus:
 
     def reply_message(self, original_msg, reply_payload):
         """Replies to an incoming message."""
-        sender = original_msg["sender"]
+        sender = validate_agent_name(original_msg["sender"])
         msg_id = original_msg["id"]
         sender_inbox = os.path.join(COMMS_BASE_DIR, sender, "inbox")
         os.makedirs(sender_inbox, exist_ok=True)
@@ -92,8 +93,7 @@ class AgentCompanyBus:
         }
 
         reply_path = os.path.join(sender_inbox, f"reply_{msg_id}.json")
-        with open(reply_path, "w") as f:
-            json.dump(reply_envelope, f, indent=2)
+        atomic_write_json(reply_path, reply_envelope)
 
         return f"Replied to {sender} for {msg_id}."
 

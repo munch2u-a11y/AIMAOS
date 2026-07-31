@@ -1,4 +1,5 @@
 import os
+import re
 
 def _find_aimaos_root():
     p = os.path.dirname(os.path.abspath(__file__))
@@ -14,10 +15,45 @@ from rich.console import Console
 from rich.panel import Panel
 from rich.table import Table
 
+from core.atomic_io import atomic_write_text
+
 console = Console()
 
 BASE_DIR = AIMAOS_ROOT
 DEFAULT_PACK = "document_heavy"
+MODEL_TAG_PATTERN = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:/-]{0,127}$")
+EMAIL_PATTERN = re.compile(r"^[A-Za-z0-9.!#$%&'*+/=?^_`{|}~-]+@[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)+$")
+
+
+def _load_yaml(path):
+    if not os.path.exists(path):
+        return {}
+    try:
+        with open(path, "r", encoding="utf-8") as handle:
+            payload = yaml.safe_load(handle) or {}
+    except (OSError, yaml.YAMLError) as exc:
+        raise ValueError(f"Could not read valid YAML from {path}: {exc}") from exc
+    if not isinstance(payload, dict):
+        raise ValueError(f"Expected a YAML mapping in {path}.")
+    return payload
+
+
+def _write_yaml(path, payload):
+    atomic_write_text(path, yaml.safe_dump(payload, sort_keys=False), mode=0o600)
+
+
+def _validated_model_tag(value):
+    value = (value or "").strip()
+    if not MODEL_TAG_PATTERN.fullmatch(value) or ".." in value or value.endswith(("/", ":")):
+        raise ValueError("Model tags may contain letters, numbers, '.', '_', '-', '/', and ':' only.")
+    return value
+
+
+def _validated_email(value):
+    value = (value or "").strip()
+    if not EMAIL_PATTERN.fullmatch(value) or "\r" in value or "\n" in value:
+        raise ValueError(f"Invalid email address: {value!r}")
+    return value
 
 
 def pack_agents(pack_name):
@@ -64,11 +100,11 @@ def import_check(mod_name):
     except ImportError:
         return False
 
-def get_installed_ollama_models():
+def get_installed_ollama_models(host="http://localhost:11434"):
     """Returns installed Ollama model tags, or None if Ollama is unreachable."""
     try:
         import urllib.request
-        with urllib.request.urlopen("http://localhost:11434/api/tags", timeout=3) as r:
+        with urllib.request.urlopen(host.rstrip("/") + "/api/tags", timeout=3) as r:
             import json
             return [m["name"] for m in json.load(r).get("models", [])]
     except Exception:
@@ -114,13 +150,7 @@ def materialize_pack(pack_name=DEFAULT_PACK, force=False):
 def configure_models_and_pull(selected_model=None, pull_permission=None, interactive=False):
     console.print("\n[bold cyan]3. Model Configuration & Selection...[/bold cyan]")
     office_cfg_path = os.path.join(BASE_DIR, "aimaos_config.yaml")
-    office_cfg = {}
-    if os.path.exists(office_cfg_path):
-        try:
-            with open(office_cfg_path, "r") as f:
-                office_cfg = yaml.safe_load(f) or {}
-        except Exception:
-            pass
+    office_cfg = _load_yaml(office_cfg_path)
 
     current_default = office_cfg.get("llm", {}).get("default_model", "qwen3.5:4b")
 
@@ -145,18 +175,23 @@ def configure_models_and_pull(selected_model=None, pull_permission=None, interac
         except (KeyboardInterrupt, EOFError):
             selected_model = current_default
 
-    chosen_model = selected_model or current_default
+    chosen_model = _validated_model_tag(selected_model or current_default)
 
-    # Save to aimaos_config.yaml
+    # Update entries that inherited the old default while preserving deliberately
+    # specialized assignments such as Finn's smaller short-turn model.
     llm_cfg = office_cfg.get("llm", {})
     llm_cfg["default_model"] = chosen_model
     office_cfg["llm"] = llm_cfg
-    with open(office_cfg_path, "w") as f:
-        yaml.dump(office_cfg, f, sort_keys=False)
+    for agent_cfg in office_cfg.get("agents", {}).values():
+        if isinstance(agent_cfg, dict) and agent_cfg.get("model") == current_default:
+            agent_cfg["model"] = chosen_model
+    _write_yaml(office_cfg_path, office_cfg)
 
     console.print(f"  - Default Agent Model Set To: [bold green]{chosen_model}[/bold green]")
 
-    installed = get_installed_ollama_models()
+    installed = get_installed_ollama_models(
+        llm_cfg.get("ollama_host", "http://localhost:11434")
+    )
     is_installed = installed is not None and (chosen_model in installed or any(m.startswith(chosen_model + ":") for m in installed))
 
     if is_installed:
@@ -180,10 +215,14 @@ def configure_models_and_pull(selected_model=None, pull_permission=None, interac
         if should_pull:
             console.print(f"\n[bold cyan]Downloading '{chosen_model}' via Ollama...[/bold cyan]")
             import subprocess
-            res = subprocess.run(["ollama", "pull", chosen_model])
-            if res.returncode == 0:
-                console.print(f"[bold green]Successfully pulled '{chosen_model}'.[/bold green]")
+            ollama_cli = shutil.which("ollama")
+            if not ollama_cli:
+                console.print("[bold red]Ollama is not installed or is not on PATH.[/bold red]")
             else:
+                res = subprocess.run([ollama_cli, "pull", chosen_model], check=False)
+            if ollama_cli and res.returncode == 0:
+                console.print(f"[bold green]Successfully pulled '{chosen_model}'.[/bold green]")
+            elif ollama_cli:
                 console.print(f"[bold red]Failed to pull model '{chosen_model}'. You can run 'ollama pull {chosen_model}' manually.[/bold red]")
         else:
             console.print(f"\n[bold yellow]Notice: Model auto-pull skipped.[/bold yellow] To download manually later, run:\n  [bold white]ollama pull {chosen_model}[/bold white]")
@@ -194,17 +233,13 @@ def configure_workspaces():
     console.print("\n[bold cyan]4. Configuring AIMAOS Mini-Agent Workspaces from aimaos_config.yaml...[/bold cyan]")
     base_dir = BASE_DIR
 
-    office_cfg = {}
     office_cfg_path = os.path.join(base_dir, "aimaos_config.yaml")
-    if os.path.exists(office_cfg_path):
-        try:
-            with open(office_cfg_path, "r") as f:
-                office_cfg = yaml.safe_load(f) or {}
-        except Exception:
-            pass
+    office_cfg = _load_yaml(office_cfg_path)
     agent_models = office_cfg.get("agents", {})
     default_model = office_cfg.get("llm", {}).get("default_model", "qwen3.5:4b")
-    installed = get_installed_ollama_models()
+    installed = get_installed_ollama_models(
+        office_cfg.get("llm", {}).get("ollama_host", "http://localhost:11434")
+    )
 
     table = Table(title="AIMAOS Mini-Agent Roster Matrix")
     table.add_column("Agent Workspace", style="white")
@@ -235,8 +270,7 @@ def configure_workspaces():
         for key, val in list(cfg_data.get("paths", {}).items()):
             if isinstance(val, str) and not os.path.isabs(val):
                 cfg_data["paths"][key] = os.path.join(apath, val)
-        with open(cfg_path, "w") as f:
-            yaml.dump(cfg_data, f, sort_keys=False)
+        _write_yaml(cfg_path, cfg_data)
 
         if installed is None:
             status = "[bold yellow]CONFIGURED (Ollama offline, tag unvalidated)[/bold yellow]"
@@ -256,26 +290,24 @@ def configure_email_security(security_mode="READ_ONLY", approved_recipients=None
     console.print("\n[bold cyan]5. Hardware-Enforced Email Security Policy Setup...[/bold cyan]")
     office_cfg_path = os.path.join(BASE_DIR, "aimaos_config.yaml")
     
-    office_cfg = {}
-    if os.path.exists(office_cfg_path):
-        try:
-            with open(office_cfg_path, "r") as f:
-                office_cfg = yaml.safe_load(f) or {}
-        except Exception:
-            pass
+    office_cfg = _load_yaml(office_cfg_path)
 
     email_cfg = office_cfg.get("email", {})
     email_cfg["security_mode"] = security_mode.upper()
     if approved_recipients:
-        email_cfg["approved_recipients"] = [r.strip() for r in approved_recipients.split(",") if r.strip()]
+        email_cfg["approved_recipients"] = [
+            _validated_email(recipient)
+            for recipient in approved_recipients.split(",")
+            if recipient.strip()
+        ]
     elif "approved_recipients" not in email_cfg:
         email_cfg["approved_recipients"] = []  # empty until the operator whitelists real recipients
 
     office_cfg["email"] = email_cfg
-    with open(office_cfg_path, "w") as f:
-        yaml.dump(office_cfg, f, sort_keys=False)
+    _write_yaml(office_cfg_path, office_cfg)
 
     if email_user:
+        email_user = _validated_email(email_user)
         cred_path = os.path.expanduser("~/.config/aimaos/credentials.env")
         os.makedirs(os.path.dirname(cred_path), exist_ok=True)
         lines = []
@@ -287,15 +319,14 @@ def configure_email_security(security_mode="READ_ONLY", approved_recipients=None
         new_lines = []
         for line in lines:
             if line.startswith("HELIX_EMAIL_USER="):
-                new_lines.append(f'HELIX_EMAIL_USER="{email_user}"\n')
+                new_lines.append(f"HELIX_EMAIL_USER={email_user}\n")
                 updated = True
             else:
                 new_lines.append(line)
         if not updated:
-            new_lines.append(f'HELIX_EMAIL_USER="{email_user}"\n')
+            new_lines.append(f"HELIX_EMAIL_USER={email_user}\n")
 
-        with open(cred_path, "w") as f:
-            f.writelines(new_lines)
+        atomic_write_text(cred_path, "".join(new_lines), mode=0o600)
         console.print(f"  - Configured Email Credentials: [bold green]{email_user}[/bold green]")
 
     sec_color = "green" if security_mode.upper() == "READ_ONLY" else "yellow"
@@ -303,6 +334,8 @@ def configure_email_security(security_mode="READ_ONLY", approved_recipients=None
     console.print(f"  - Approved Outbound Whitelist: [bold white]{', '.join(email_cfg.get('approved_recipients', []))}[/bold white]")
 
 def main():
+    if os.name == "posix":
+        os.umask(0o077)
     parser = argparse.ArgumentParser(description="AIMAOS setup wizard")
     parser.add_argument("--pack", default=DEFAULT_PACK,
                         help=f"Starter pack to materialize (default: {DEFAULT_PACK}).")
@@ -326,10 +359,26 @@ def main():
 
     console.print(Panel("[bold cyan]AIMAOS SETUP WIZARD[/bold cyan]\nModel-Agnostic Multi-Agent Operating System Configurator", border_style="cyan"))
     run_diagnostics()
-    materialize_pack(args.pack, force=args.force)
-    configure_models_and_pull(selected_model=args.model, pull_permission=args.pull_models, interactive=is_interactive)
-    configure_workspaces()
-    configure_email_security(args.email_security_mode, args.approved_recipients, args.email_user)
+    try:
+        # Validate CLI-provided values before materializing or changing anything.
+        if args.model:
+            _validated_model_tag(args.model)
+        if args.email_user:
+            _validated_email(args.email_user)
+        if args.approved_recipients:
+            for recipient in args.approved_recipients.split(","):
+                if recipient.strip():
+                    _validated_email(recipient)
+        materialize_pack(args.pack, force=args.force)
+        configure_models_and_pull(
+            selected_model=args.model,
+            pull_permission=args.pull_models,
+            interactive=is_interactive,
+        )
+        configure_workspaces()
+        configure_email_security(args.email_security_mode, args.approved_recipients, args.email_user)
+    except ValueError as exc:
+        parser.error(str(exc))
     console.print("\n[bold green]SUCCESS: AIMAOS Model-Agnostic Setup Completed![/bold green]")
     console.print("Run [bold yellow]python3 aimaos_ui.py[/bold yellow] (dashboard) or [bold yellow]python3 run_office.py[/bold yellow] (autonomous daemon).")
 

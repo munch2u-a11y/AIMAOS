@@ -1,4 +1,6 @@
 #!/bin/bash
+set -euo pipefail
+umask 077
 echo "===================================================================="
 echo "LAUNCHING AIMAOS ALL-IN-ONE SYSTEM & DASHBOARD"
 echo "===================================================================="

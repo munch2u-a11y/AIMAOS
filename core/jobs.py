@@ -26,6 +26,12 @@ class JobManager:
         self.executor = ThreadPoolExecutor(max_workers=max_workers, thread_name_prefix="aimaos-job")
         self._lock = threading.Lock()
         self.db.interrupt_unfinished_jobs()
+        try:
+            from core.security import load_security_config
+            retention_days = int(load_security_config().get("privacy", {}).get("log_retention_days", 30))
+            self.db.prune_runtime_history(retention_days)
+        except Exception:  # diagnostics must not prevent the job service from starting
+            logger.exception("Could not prune expired dashboard job history")
 
     def submit(self, kind: str, title: str, function: Callable[[], object]) -> str:
         job_id = f"job_{uuid.uuid4().hex}"

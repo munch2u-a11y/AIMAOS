@@ -49,7 +49,7 @@ class MarleyAgent(OfficeAgent):
         turn = self.dispatch_next_turn()
         if isinstance(turn, dict):
             self.record_experience(
-                f"I dispatched '{turn['title']}' (priority {turn['priority']}) to {turn['assigned_agent']}.",
+                f"I dispatched a {turn['priority']} priority task to {turn['assigned_agent']}.",
                 category="memory", confidence=0.55)
         return {
             "system_prompt": self.get_system_prompt(),

@@ -86,6 +86,8 @@ class CaseAgent:
 
     def record_category_skill(self, skill_statement):
         """Saves a procedural skill to both this case and the shared CategorySkillRepository."""
+        if not load_office_config().get("privacy", {}).get("learn_from_matter_content", False):
+            return
         self.category_repo.add_category_skill(self.category, skill_statement, source_client=self.client_name)
         self.record_experience(f"[Learned Skill]: {skill_statement}", category="skills", confidence=0.85)
 
@@ -228,6 +230,8 @@ class CaseAgent:
             # convert document content into executable office tasks.
             update["tasks_to_assign"] = []
 
-        takeaway = update.get("summary") or "reviewed the case, no summary change"
-        self.record_experience(f"Reviewed the case. Takeaway: {takeaway[:200]}")
+        self.record_experience(
+            "Reviewed the matter and produced a structured update."
+            if update else "Reviewed the matter but produced no structured update."
+        )
         return update

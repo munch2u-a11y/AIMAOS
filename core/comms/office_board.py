@@ -9,7 +9,8 @@ AIMAOS_ROOT = os.environ.get("AIMAOS_ROOT") or _find_aimaos_root()
 import json
 import fcntl
 import logging
-from datetime import datetime
+from datetime import datetime, timedelta
+from core.atomic_io import atomic_write_json
 
 logger = logging.getLogger(__name__)
 
@@ -67,8 +68,26 @@ class OfficeBoard:
             try:
                 self.board = self._load_board()
                 result = mutate_fn(self.board)
-                with open(OFFICE_BOARD_FILE, "w") as f:
-                    json.dump(self.board, f, indent=2)
+                try:
+                    from core.security import load_security_config
+                    retention_days = max(
+                        1, int(load_security_config().get("privacy", {}).get("log_retention_days", 30))
+                    )
+                    cutoff = datetime.now() - timedelta(days=retention_days)
+                    completed = []
+                    for task in self.board.get("completed_tasks", []):
+                        try:
+                            completed_at = datetime.fromisoformat(
+                                task.get("completed_at") or task.get("updated_at") or task.get("created_at")
+                            )
+                        except (TypeError, ValueError):
+                            completed_at = datetime.now()
+                        if completed_at >= cutoff:
+                            completed.append(task)
+                    self.board["completed_tasks"] = completed[-500:]
+                except Exception as exc:
+                    logger.warning("Could not prune Office Board history: %s", exc)
+                atomic_write_json(OFFICE_BOARD_FILE, self.board)
                 try:
                     from core.db.office_sqlite import OfficeSQLite
                     db = OfficeSQLite()

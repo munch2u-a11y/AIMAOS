@@ -63,4 +63,9 @@ def prune_runtime_records(aimaos_root: str) -> dict:
                     removed[kind] += 1
             except OSError:
                 continue
+    try:
+        from core.db.office_sqlite import OfficeSQLite
+        removed.update(OfficeSQLite().prune_runtime_history(retention_days))
+    except Exception:
+        removed.update({"jobs": 0, "completed_tasks": 0})
     return removed

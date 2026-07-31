@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 set -euo pipefail
+umask 077
 
 cd "$(dirname "$0")"
 
@@ -10,7 +11,7 @@ fi
 
 python3 -m venv .venv
 .venv/bin/python3 -m pip install --upgrade pip
-.venv/bin/python3 -m pip install -r requirements.txt
+.venv/bin/python3 -m pip install -r requirements.lock
 .venv/bin/python3 doctor.py
 .venv/bin/python3 setup.py "$@"
 

@@ -37,7 +37,7 @@ class FinnAgent(OfficeAgent):
         triage_mod = load_tool("triage_incoming", os.path.join(AIMAOS_ROOT, "Finn-AI/tools/triage_incoming.py"))
         triage_res = triage_mod.execute(sender_address=sender, message=message, channel=channel)
         self.record_experience(
-            f"I triaged an incoming {channel} message from {sender}.",
+            f"I triaged an incoming message from the {channel} channel.",
             category="memory", confidence=0.55)
 
         # Let Finn speak for himself when the model is reachable; fall back to
@@ -67,6 +67,6 @@ class FinnAgent(OfficeAgent):
         cmd_mod = load_tool("commandeer_channel", os.path.join(AIMAOS_ROOT, "Finn-AI/tools/commandeer_channel.py"))
         result = cmd_mod.execute(calling_agent, recipient_email, subject, body, attachments)
         self.record_experience(
-            f"{calling_agent} commandeered my gateway to reach {recipient_email}.",
+            f"{calling_agent} requested use of my communications gateway.",
             category="memory", confidence=0.55)
         return result

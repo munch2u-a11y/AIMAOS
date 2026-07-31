@@ -183,7 +183,7 @@ class {clean_name}Agent(OfficeAgent):
             details={{"message": message, "channel": channel}}
         )
         self.record_experience(
-            f"A user ({{sender}}) sent me a direct request via {{channel}}.",
+            f"A user sent me a direct request via {{channel}}.",
             category="memory", confidence=0.55)
         return (f"{clean_name} (" + {role_literal} + "): Logged your request to the Office Board "
                 f"(Task {{task_id}}). It will be handled in priority order.")

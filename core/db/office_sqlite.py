@@ -19,7 +19,7 @@ import sys
 import json
 import sqlite3
 import logging
-from datetime import datetime
+from datetime import datetime, timedelta
 
 logger = logging.getLogger(__name__)
 
@@ -33,6 +33,11 @@ class OfficeSQLite:
         self.db_path = db_path
         os.makedirs(os.path.dirname(db_path), exist_ok=True)
         self._init_tables()
+        if os.name == "posix":
+            try:
+                os.chmod(self.db_path, 0o600)
+            except OSError:
+                pass
         self._migrate_if_needed()
 
     def get_connection(self):
@@ -46,6 +51,13 @@ class OfficeSQLite:
     def _init_tables(self):
         with self.get_connection() as conn:
             cursor = conn.cursor()
+
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS schema_meta (
+                    key TEXT PRIMARY KEY,
+                    value TEXT NOT NULL
+                )
+            """)
             
             # 1. Cases Table
             cursor.execute("""
@@ -111,6 +123,12 @@ class OfficeSQLite:
 
     def _migrate_if_needed(self):
         """Auto-migrates existing client index and office board JSON data into SQLite."""
+        with self.get_connection() as conn:
+            migrated = conn.execute(
+                "SELECT value FROM schema_meta WHERE key = 'legacy_json_migration_v1'"
+            ).fetchone()
+        if migrated:
+            return
         # Migrate Client Index
         if os.path.exists(OLD_INDEX_PATH):
             try:
@@ -185,6 +203,13 @@ class OfficeSQLite:
                     conn.commit()
             except Exception as e:
                 logger.warning(f"Error migrating office board to SQLite: {e}")
+
+        with self.get_connection() as conn:
+            conn.execute(
+                "INSERT OR REPLACE INTO schema_meta (key, value) VALUES ('legacy_json_migration_v1', ?)",
+                (datetime.now().isoformat(),),
+            )
+            conn.commit()
 
     # --- Cases Methods ---
     def upsert_case(self, client_slug, client_name, path, matter_type="Legal Matter", category="", status="open", case_number=None):
@@ -338,6 +363,18 @@ class OfficeSQLite:
                 (datetime.now().isoformat(),),
             )
             conn.commit()
+
+    def prune_runtime_history(self, retention_days=30):
+        """Remove expired job payloads and completed task traces."""
+        retention_days = max(1, int(retention_days))
+        cutoff = (datetime.now() - timedelta(days=retention_days)).isoformat()
+        with self.get_connection() as conn:
+            jobs = conn.execute("DELETE FROM jobs WHERE created_at < ?", (cutoff,)).rowcount
+            tasks = conn.execute(
+                "DELETE FROM tasks WHERE LOWER(status) = 'completed' AND updated_at < ?", (cutoff,)
+            ).rowcount
+            conn.commit()
+        return {"jobs": jobs, "completed_tasks": tasks}
 
 
 if __name__ == "__main__":

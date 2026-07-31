@@ -12,6 +12,8 @@ def _find_aimaos_root():
         p = os.path.dirname(p)
     return p
 AIMAOS_ROOT = os.environ.get("AIMAOS_ROOT") or _find_aimaos_root()
+if os.name == "posix":
+    os.umask(0o077)
 import sys
 import importlib.util
 

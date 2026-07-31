@@ -35,7 +35,7 @@ For a manual install:
 
 ```bash
 python3 -m venv .venv
-.venv/bin/python3 -m pip install -r requirements.txt
+.venv/bin/python3 -m pip install -r requirements.lock
 .venv/bin/python3 doctor.py
 .venv/bin/python3 setup.py
 .venv/bin/python3 aimaos_ui.py
@@ -86,7 +86,7 @@ Stop AIMAOS before copying these directories for backup. Never commit runtime fo
 Fast, isolated release tests live in `tests/unit/` and are the default pytest target. Older benchmark scripts in `tests/` can invoke real models or mutate live runtime state; read [tests/README.md](tests/README.md) before running them.
 
 ```bash
-.venv/bin/python3 -m pip install -r requirements-dev.txt
+.venv/bin/python3 -m pip install -r requirements-dev.lock
 .venv/bin/python3 -m pytest
 ```
 

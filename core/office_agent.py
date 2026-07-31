@@ -295,7 +295,7 @@ class OfficeAgent:
             outcome = self._llm_task_loop(task_text)
             self.board.update_task_status(target["id"], "completed", result=outcome)
             self.record_experience(
-                f"I completed task '{target['title']}' for {target.get('requester')}. Outcome: {outcome[:300]}",
+                f"I completed an office task using the configured workflow. Task id: {target['id']}.",
                 category="memory", confidence=0.65)
             status_word = "completed"
         except Exception as e:
@@ -303,7 +303,8 @@ class OfficeAgent:
             self.board.update_task_status(target["id"], "failed", result=outcome)
             self.board.log_activity(f"[{self.name}] Task '{target['title']}' FAILED: {e}")
             self.record_experience(
-                f"I failed task '{target['title']}': {e}", category="memory", confidence=0.6)
+                f"An office task failed. Task id: {target['id']}; error type: {type(e).__name__}.",
+                category="memory", confidence=0.6)
             status_word = "failed"
         finally:
             self.board.update_agent_status(self.name, "idle")

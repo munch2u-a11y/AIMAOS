@@ -9,6 +9,7 @@ AIMAOS is local-first, but local software is not automatically private. Anyone w
 - Raw tool outputs are not persisted in tool logs by default; a digest and character count are retained for diagnostics.
 - Common SSN, payment-number, and email patterns are redacted from learned operational memories and recorded job failures.
 - Raw memory is not injected across tasks by default.
+- Matter content is not promoted into shared learned skills by default.
 - Runtime tool logs and read-message markers are pruned after 30 days by the managed daemon.
 
 Redaction is heuristic and is not a data-loss-prevention guarantee. Matter summaries, source documents, SQLite records, and office-board tasks may still contain personal information required for the workflow.
