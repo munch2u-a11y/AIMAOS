@@ -1,4 +1,4 @@
-# Technical Audit: Finn-AI (Security Officer, Comms Gateway, & Voice Scribe)
+# Technical Audit: Security Officer & Comms Gateway (Finn Preset)
 
 ## 1. Agent Overview
 - **Workspace**: `<office root>/Finn-AI`

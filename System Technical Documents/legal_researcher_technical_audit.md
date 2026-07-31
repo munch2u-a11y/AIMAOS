@@ -1,4 +1,4 @@
-# Technical Audit: Quinn-AI (Research & Legal Intelligence Reporter)
+# Technical Audit: Legal & Statutory Researcher (Quinn Preset)
 
 ## 1. Agent Overview
 - **Workspace**: `<office root>/Quinn-AI`

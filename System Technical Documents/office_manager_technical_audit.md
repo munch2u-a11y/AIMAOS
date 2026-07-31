@@ -1,4 +1,4 @@
-# Technical Audit: Marley-AI (Office Manager & Priority Scheduler)
+# Technical Audit: Office Manager & Priority Scheduler (Marley Preset)
 
 ## 1. Agent Overview
 - **Workspace**: `<office root>/Marley-AI`

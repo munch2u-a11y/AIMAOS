@@ -1,4 +1,4 @@
-# Technical Audit: Kai-AI (Digital Librarian & Task Log Archiver)
+# Technical Audit: Digital Librarian & Archiver (Kai Preset)
 
 ## 1. Agent Overview
 - **Workspace**: `<office root>/Kai-AI`

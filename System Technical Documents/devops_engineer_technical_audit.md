@@ -1,4 +1,4 @@
-# Technical Audit: Zoe-AI (DevOps Maintenance Engineer & Synthesizer)
+# Technical Audit: DevOps Engineer & Synthesizer (Zoe Preset)
 
 ## 1. Agent Overview
 - **Workspace**: `<office root>/Zoe-AI`
