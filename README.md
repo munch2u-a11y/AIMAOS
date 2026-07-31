@@ -53,6 +53,8 @@ node --check ui/static/app.js
 
 Then work through [the deployment guide](docs/DEPLOYMENT.md) and [public-beta checklist](docs/PUBLIC_BETA_CHECKLIST.md). Keep the dashboard on loopback unless it is protected by an authenticated TLS reverse proxy.
 
+The [product beta roadmap](docs/PRODUCT_BETA_ROADMAP.md) records the competitive UX benchmark, launch gates, and recommended post-beta priorities.
+
 ## Safety model
 
 Public-beta defaults are intentionally conservative:

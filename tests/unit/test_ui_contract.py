@@ -1,4 +1,5 @@
 import ast
+import re
 from pathlib import Path
 
 import aimaos_ui
@@ -58,6 +59,15 @@ def test_ui_avoids_unsafe_rendering_and_remote_assets():
     assert "document.write" not in combined
     assert "fonts.googleapis.com" not in combined
     assert "https://" not in html
+
+
+def test_javascript_id_selectors_exist_in_dashboard_markup():
+    javascript = (ROOT / "ui" / "static" / "app.js").read_text(encoding="utf-8")
+    html = (ROOT / "ui" / "aimaos_ui.html").read_text(encoding="utf-8")
+    html_ids = set(re.findall(r'id="([A-Za-z][A-Za-z0-9_-]*)"', html))
+    selected_ids = set(re.findall(r'\$\("#([A-Za-z][A-Za-z0-9_-]*)"\)', javascript))
+    assert selected_ids <= html_ids
+    assert "setup-banner" in selected_ids
 
 
 def test_ui_routes_use_background_jobs_for_model_work():

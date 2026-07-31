@@ -14,6 +14,7 @@ python3 -m venv .venv
 .venv/bin/python3 -m pip install -r requirements.lock
 .venv/bin/python3 doctor.py
 .venv/bin/python3 setup.py "$@"
+.venv/bin/python3 doctor.py
 
 echo
 echo "Installation complete. Start AIMAOS with: ./Launch AIMAOS.sh"

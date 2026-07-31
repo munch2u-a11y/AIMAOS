@@ -254,13 +254,7 @@ def configure_workspaces():
         model = agent_models.get(agent_name, {}).get("model", default_model)
 
         cfg_path = os.path.join(apath, "config.yaml")
-        cfg_data = {}
-        if os.path.exists(cfg_path):
-            try:
-                with open(cfg_path, "r") as f:
-                    cfg_data = yaml.safe_load(f) or {}
-            except Exception:
-                pass
+        cfg_data = _load_yaml(cfg_path)
 
         if "agent" not in cfg_data:
             cfg_data["agent"] = {"name": agent_name}

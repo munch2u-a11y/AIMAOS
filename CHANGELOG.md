@@ -9,3 +9,4 @@
 - Disabled external mutations, shell tools, raw memory injection, and document-triggered delegation by default.
 - Added privacy-aware logs, retention pruning, deployment diagnostics, pinned direct dependencies, CI, and isolated release tests.
 - Added deployment, privacy, security, limitation, and beta-readiness documentation.
+- Added atomic private runtime writes, bounded history retention, setup validation, transitive dependency locks, and a competitive product-beta roadmap.

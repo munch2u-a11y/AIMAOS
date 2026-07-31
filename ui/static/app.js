@@ -526,7 +526,8 @@ async function bootstrap() {
   state.bootstrap = payload;
   state.csrf = payload.csrf_token;
   renderSettings();
-  if (!payload.setup_complete) toast("Setup is incomplete. Run the setup wizard before starting office work.", true);
+  $("#setup-banner").hidden = payload.setup_complete;
+  if (!payload.setup_complete) toast("Setup is incomplete. Follow the setup instructions shown above.", true);
   await Promise.all([loadCases(), loadTemplates(), loadStatus()]);
 }
 

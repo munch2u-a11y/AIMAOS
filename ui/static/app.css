@@ -36,6 +36,10 @@ h3 { font-size: .98rem; }
 .skip-link:focus { top: 1rem; }
 .topbar { height: 72px; display: flex; align-items: center; justify-content: space-between; padding: 0 1.5rem; background: var(--surface); border-bottom: 1px solid var(--line); position: sticky; top: 0; z-index: 30; }
 .brand-block, .topbar-actions, .panel-heading, .section-row { display: flex; align-items: center; justify-content: space-between; gap: 1rem; }
+.setup-banner { max-width: 1320px; margin: 0 auto 1.25rem; padding: 1rem 1.1rem; border: 1px solid #d99a00; border-radius: 12px; background: #fff8e5; color: #684b06; display: flex; align-items: center; justify-content: space-between; gap: 1rem; }
+.setup-banner[hidden] { display: none; }
+.setup-banner p { margin: .25rem 0 0; }
+.setup-banner code { font-weight: 700; }
 .brand-block { justify-content: flex-start; }
 .brand-mark { display: grid; place-items: center; width: 38px; height: 38px; border-radius: 12px; background: linear-gradient(145deg, var(--brand), #6e8ef5); color: white; font-weight: 800; }
 .brand { font-weight: 800; letter-spacing: -.02em; }
@@ -163,6 +167,7 @@ dialog::backdrop { background: rgba(13, 22, 33, .58); }
   #health-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .message { max-width: 94%; }
   .composer-actions { align-items: stretch; flex-direction: column-reverse; }
+  .setup-banner { align-items: stretch; flex-direction: column; }
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -183,6 +188,7 @@ dialog::backdrop { background: rgba(13, 22, 33, .58); }
   }
   label { color: #d3dae3; }
   .review-notice { background: #352b12; color: #f2d992; }
+  .setup-banner { background: #352b12; color: #f2d992; }
   .privacy-note { background: #173226; color: #b7dec8; }
   .danger-button { background: #3a1d1b; }
 }
