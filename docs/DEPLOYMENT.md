@@ -25,6 +25,8 @@ Before first use, check `aimaos_config.yaml`:
 - Disable `ui.allow_native_open` when browser users are not physically using the AIMAOS host.
 - Confirm all network, mutation, shell, and document-delegation security flags remain false.
 - Confirm email is `READ_ONLY` with no approved recipients.
+- Leave `workflow.direct_communications` false so communication work remains an attorney-owned reminder.
+- Review `workflow.stale_task_hours` and the daily Agenda with the office's actual escalation policy.
 - Select models that are actually installed and support tool calls where needed.
 
 ## 4. Start and smoke-test
@@ -40,6 +42,7 @@ From the same machine, open `http://127.0.0.1:8080`. Confirm that:
 3. The intake appears as a background job and exposes an honest completed or failed state.
 4. The file can be downloaded and no absolute filesystem path appears in browser responses.
 5. A generated draft displays the human-review notice.
+6. “Refresh blockers” produces an idempotent Agenda, and a synthetic client-update task can be snoozed and completed without sending a message.
 
 Delete the synthetic matter data after testing according to your retention process.
 
@@ -58,6 +61,7 @@ Terminate HTTPS and user authentication at a reverse proxy on the same host, the
 
 - Run `doctor.py` after upgrades and before support handoff.
 - Monitor `comms/daemon_status.json`, job failures in the Home queue, disk space, and Ollama health.
+- Review the Agenda at the start of each workday; its prioritization assists staff but does not establish or calculate legal deadlines.
 - Stop AIMAOS before a consistent backup of runtime work and `comms/`.
 - Test restore procedures with synthetic data.
 - Review template provenance and official form revisions on a defined schedule.

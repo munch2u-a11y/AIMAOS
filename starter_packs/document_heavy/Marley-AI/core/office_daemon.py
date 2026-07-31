@@ -86,12 +86,18 @@ def load_agent(name):
 
 class OfficeDaemon:
     def __init__(self, poll_interval=None):
-        cfg = load_office_config().get("office", {})
+        full_cfg = load_office_config()
+        cfg = full_cfg.get("office", {})
+        workflow_cfg = full_cfg.get("workflow", {})
         self.poll_interval = poll_interval if poll_interval is not None else float(cfg.get("poll_interval_sec", 3.0))
         self.task_lease_sec = int(cfg.get("task_lease_sec", 600))
         self.max_task_retries = int(cfg.get("max_task_retries", 2))
         self.reflection_every = int(cfg.get("reflection_every_cycles", 12))
         self.idle_backoff_max_sec = float(cfg.get("idle_backoff_max_sec", 60.0))
+        self.workflow_review_interval_sec = max(
+            60.0, float(workflow_cfg.get("review_check_interval_sec", 300.0))
+        )
+        self._last_workflow_review_check = 0.0
         self._consecutive_idle_cycles = 0
 
         self.board = OfficeBoard()
@@ -112,7 +118,24 @@ class OfficeDaemon:
             print(f"[Office Daemon] Privacy housekeeping: {prune_runtime_records(AIMAOS_ROOT)}")
         except Exception as exc:
             logger.warning("Privacy housekeeping failed: %s", exc)
+        self.maybe_run_advancement_review()
         write_daemon_status("starting", cycle=self.cycle)
+
+    def maybe_run_advancement_review(self, *, force=False):
+        """Run Marley's deterministic blocker/reminder review once per day."""
+        now = time.monotonic()
+        if not force and now - self._last_workflow_review_check < self.workflow_review_interval_sec:
+            return None
+        self._last_workflow_review_check = now
+        try:
+            from core.workflow_review import run_daily_advancement_review
+            report = run_daily_advancement_review(force=force, board=self.board)
+            if report.get("ran"):
+                print(f"[Office Daemon] Daily advancement review: {report}")
+            return report
+        except Exception as exc:
+            logger.warning("Daily advancement review failed: %s", exc)
+            return {"ran": False, "reason": "error"}
 
     # ------------------------------------------------------------ hygiene
     def requeue_expired_and_failed(self):
@@ -225,6 +248,7 @@ class OfficeDaemon:
         write_daemon_status("polling", cycle=self.cycle)
         print(f"\n--- OFFICE PULSE {self.cycle} [{datetime.now().strftime('%H:%M:%S')}] ---")
 
+        self.maybe_run_advancement_review()
         self.requeue_expired_and_failed()
         self.process_all_inboxes()
 

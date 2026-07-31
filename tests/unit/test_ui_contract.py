@@ -68,6 +68,7 @@ def test_javascript_id_selectors_exist_in_dashboard_markup():
     selected_ids = set(re.findall(r'\$\("#([A-Za-z][A-Za-z0-9_-]*)"\)', javascript))
     assert selected_ids <= html_ids
     assert "setup-banner" in selected_ids
+    assert {"view-agenda", "agenda-work-list", "attention-metric"} <= html_ids
 
 
 def test_ui_routes_use_background_jobs_for_model_work():

@@ -16,7 +16,8 @@ AIMAOS should not imitate the breadth of these mature suites during beta. Its de
 
 ## What this beta now establishes
 
-- One task-oriented home for matters, draft creation, work status, and the assistant.
+- One task-oriented workstation for an Agenda, matters, draft creation, work status, and the assistant.
+- A deterministic daily advancement review that makes human follow-ups, task dependencies, stale work, case steps, and blockers visible without sending communications.
 - Persistent jobs with visible pending, completed, failed, and interrupted states.
 - Matter-scoped file intake and summaries instead of an unstructured global chatbot.
 - Template provenance warnings and a permanent human-review boundary around generated drafts.
@@ -42,7 +43,7 @@ Do not advertise the beta as multi-user, unattended automation, secure cloud hos
 Prioritize improvements that shorten the path from evidence to a reviewed artifact:
 
 1. **Grounded answers with evidence.** Show the matter files and passages used for an answer, provide direct open/download actions, and clearly say when no supporting source was found.
-2. **Review queue for proposed actions.** Represent email, calendar, file moves, and other external changes as inspectable proposals with exact targets and a separate human confirmation step.
+2. **Expand the action review queue.** The beta now represents client communication as an inspectable staff reminder. Extend this pattern to exact-target email drafts, file moves, and other external changes, with separate human confirmation and audit history.
 3. **Inline document assistance.** Add an opt-in LibreOffice or ONLYOFFICE integration for selected-text rewrite, summarize, extract dates, and populate fields without copy/paste.
 4. **Reusable work recipes.** Turn frequent, reviewed prompts into named actions with required inputs, expected outputs, and explicit permission boundaries.
 5. **Unified local search.** Search matter names, filenames, summaries, generated drafts, and job results, with visible scope and source filters.

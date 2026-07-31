@@ -10,3 +10,5 @@
 - Added privacy-aware logs, retention pruning, deployment diagnostics, pinned direct dependencies, CI, and isolated release tests.
 - Added deployment, privacy, security, limitation, and beta-readiness documentation.
 - Added atomic private runtime writes, bounded history retention, setup validation, transitive dependency locks, and a competitive product-beta roadmap.
+- Added a unified Agenda with prioritized blockers, case-advancement steps, deadlines, staff follow-ups, and complete/snooze controls.
+- Added Marley's deterministic daily advancement review with recursive task dependencies, stale-work promotion, false-completion review, and idempotent local reminders.

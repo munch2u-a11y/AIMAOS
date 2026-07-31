@@ -6,10 +6,7 @@ def _find_aimaos_root():
         p = os.path.dirname(p)
     return p
 AIMAOS_ROOT = os.environ.get("AIMAOS_ROOT") or _find_aimaos_root()
-import json
-from datetime import datetime
-
-CALENDAR_FILE = os.path.join(AIMAOS_ROOT, "Marley-AI/workspace/calendar/events.json")
+from core.local_calendar import LocalCalendar
 
 TOOL_DEFINITION = {
     "name": "manage_schedule",
@@ -33,45 +30,37 @@ TOOL_DEFINITION = {
             "client_name": {
                 "type": "string",
                 "description": "Optional client associated with this schedule event."
+            },
+            "priority": {
+                "type": "string",
+                "enum": ["CRITICAL", "HIGH", "NORMAL", "BACKGROUND"],
+                "description": "Operational priority for the local agenda."
             }
         },
         "required": ["action"]
     }
 }
 
-def _load_events():
-    os.makedirs(os.path.dirname(CALENDAR_FILE), exist_ok=True)
-    if os.path.exists(CALENDAR_FILE):
-        try:
-            with open(CALENDAR_FILE, "r") as f:
-                return json.load(f)
-        except Exception:
-            pass
-    return []
-
-def _save_events(events):
-    os.makedirs(os.path.dirname(CALENDAR_FILE), exist_ok=True)
-    with open(CALENDAR_FILE, "w") as f:
-        json.dump(events, f, indent=2)
-
-def execute(action, event_title=None, date=None, client_name=None):
-    events = _load_events()
+def execute(action, event_title=None, date=None, client_name=None, priority="NORMAL"):
+    calendar = LocalCalendar()
 
     if action == "add_event":
         if not event_title or not date:
             return "Error: event_title and date are required for add_event."
-        entry = {
-            "id": f"evt_{datetime.now().strftime('%Y%m%d_%H%M%S')}",
-            "title": event_title,
-            "date": date,
-            "client_name": client_name or "General",
-            "created_at": datetime.now().isoformat()
-        }
-        events.append(entry)
-        _save_events(events)
-        return f"Successfully scheduled event '{event_title}' for {date} (Client: {client_name or 'General'})."
+        key = f"manual:{client_name or 'General'}:{event_title}:{date}".casefold()
+        _event, created = calendar.upsert_event(
+            event_key=key,
+            title=event_title,
+            date=date,
+            client_name=client_name,
+            priority=priority,
+            kind="calendar_event",
+        )
+        verb = "Scheduled" if created else "Refreshed"
+        return f"{verb} event '{event_title}' for {date} (Client: {client_name or 'General'})."
 
     elif action == "list_events":
+        events = calendar.list_events()
         if not events:
             return "Calendar is empty. No scheduled events found."
         res = [f"Total Scheduled Events: {len(events)}"]
@@ -79,5 +68,14 @@ def execute(action, event_title=None, date=None, client_name=None):
             res.append(f"- [{e['date']}] {e['title']} (Client: {e.get('client_name', 'N/A')})")
         return "\n".join(res)
 
-    else:
-        return "Invalid schedule action."
+    elif action == "get_deadline":
+        events = calendar.list_events()
+        if client_name:
+            events = [event for event in events
+                      if str(event.get("client_name", "")).casefold() == client_name.casefold()]
+        if not events:
+            return f"No open deadlines found for {client_name or 'the office'}."
+        event = events[0]
+        return f"Next deadline: [{event['date']}] {event['title']} (Client: {event.get('client_name', 'N/A')})"
+
+    return "Invalid schedule action."

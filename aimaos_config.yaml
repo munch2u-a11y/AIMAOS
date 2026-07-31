@@ -36,6 +36,13 @@ office:
   reflection_every_cycles: 12
   injection_max_tokens: 400
   idle_backoff_max_sec: 60.0
+workflow:
+  daily_review_enabled: true
+  review_check_interval_sec: 300
+  stale_task_hours: 24
+  # Public beta keeps client communications as staff reminders. It does not
+  # send email or messages directly.
+  direct_communications: false
 ui:
   host: 127.0.0.1
   port: 8080

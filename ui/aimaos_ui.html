@@ -33,6 +33,9 @@
       <button class="nav-button active" type="button" data-view-target="home" aria-controls="view-home" aria-current="page">
         <span aria-hidden="true">⌂</span> Home
       </button>
+      <button class="nav-button" type="button" data-view-target="agenda" aria-controls="view-agenda">
+        <span aria-hidden="true">☷</span> Agenda
+      </button>
       <button class="nav-button" type="button" data-view-target="matters" aria-controls="view-matters">
         <span aria-hidden="true">▣</span> Matters
       </button>
@@ -86,10 +89,10 @@
             <strong id="matter-metric">0</strong>
             <small>Available locally</small>
           </article>
-          <article class="metric-card">
-            <span>Completed</span>
-            <strong id="completed-metric">0</strong>
-            <small>Office tasks recorded</small>
+          <article class="metric-card attention-card">
+            <span>Needs staff</span>
+            <strong id="attention-metric">0</strong>
+            <small>Human follow-ups or blockers</small>
           </article>
         </div>
 
@@ -97,8 +100,8 @@
           <section class="panel" aria-labelledby="work-title">
             <div class="panel-heading">
               <div>
-                <p class="eyebrow">Work queue</p>
-                <h2 id="work-title">Needs attention</h2>
+                <p class="eyebrow">Priorities</p>
+                <h2 id="work-title">Next actions and blockers</h2>
               </div>
               <button class="text-button" id="refresh-status" type="button">Refresh</button>
             </div>
@@ -122,12 +125,33 @@
               <button type="button" class="quick-card" data-quick-action="audit_all">
                 <span aria-hidden="true">✓</span><strong>Security review</strong><small>Queue an office audit</small>
               </button>
-              <button type="button" class="quick-card" data-quick-action="scan_drives">
-                <span aria-hidden="true">⌕</span><strong>Review storage</strong><small>Scan approved roots</small>
+              <button type="button" class="quick-card" data-quick-action="review_blockers">
+                <span aria-hidden="true">↻</span><strong>Review blockers</strong><small>Refresh priorities now</small>
               </button>
             </div>
           </aside>
         </div>
+      </section>
+
+      <section id="view-agenda" class="view" aria-labelledby="agenda-title" hidden>
+        <div class="page-heading compact">
+          <div>
+            <p class="eyebrow">Daily workstation</p>
+            <h1 id="agenda-title">Agenda and next actions</h1>
+            <p>One prioritized view of staff follow-ups, blocked work, matter steps, deadlines, and office jobs.</p>
+          </div>
+          <button class="primary-button" type="button" data-quick-action="review_blockers">Refresh blockers</button>
+        </div>
+        <section class="panel" aria-labelledby="agenda-list-title">
+          <div class="panel-heading">
+            <div>
+              <p class="eyebrow">Ordered by urgency</p>
+              <h2 id="agenda-list-title">Open work</h2>
+            </div>
+            <span class="draft-pill">Local only</span>
+          </div>
+          <div id="agenda-work-list" class="stack-list agenda-list" aria-live="polite"></div>
+        </section>
       </section>
 
       <section id="view-matters" class="view" aria-labelledby="matters-title" hidden>

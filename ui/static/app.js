@@ -105,48 +105,133 @@ function renderHealth() {
   const activeJobs = (state.status.jobs || []).filter((job) => ["queued", "running"].includes(job.status));
   $("#active-metric").textContent = String((state.status.active_tasks || []).length + activeJobs.length);
   $("#matter-metric").textContent = String(state.cases.length);
-  $("#completed-metric").textContent = String(state.status.completed_task_count || 0);
+  const needsStaff = (state.status.work_items || []).filter((item) => (
+    item.requires_human || item.overdue || ["blocked", "failed"].includes(item.status)
+  ));
+  $("#attention-metric").textContent = String(needsStaff.length);
 }
 
 function statusTag(status) {
   return node("span", `status-tag ${status || ""}`, String(status || "queued").replaceAll("_", " "));
 }
 
+function tomorrowDate() {
+  const value = new Date();
+  value.setDate(value.getDate() + 1);
+  const pad = (number) => String(number).padStart(2, "0");
+  return `${value.getFullYear()}-${pad(value.getMonth() + 1)}-${pad(value.getDate())}`;
+}
+
+async function updateWorkItem(item, action) {
+  try {
+    const body = { task_id: item.id, action };
+    if (action === "snooze") body.due_date = tomorrowDate();
+    const payload = await apiFetch("/api/work_item", {
+      method: "POST",
+      body: JSON.stringify(body),
+    });
+    toast(payload.message);
+    await loadStatus();
+  } catch (error) {
+    toast(error.message, true);
+  }
+}
+
+function workstationRow(item, interactive = true) {
+  const row = node("article", `work-item priority-${String(item.priority || "normal").toLowerCase()}${item.overdue ? " overdue" : ""}`);
+  const copy = node("div", "work-copy");
+  copy.append(node("strong", "", item.title || "Untitled work item"));
+
+  const meta = node("div", "work-meta");
+  [item.matter, item.owner, item.priority, item.due_date ? `Due ${item.due_date}` : null]
+    .filter(Boolean)
+    .forEach((value) => meta.append(node("span", "", value)));
+  copy.append(meta);
+  if (item.blocker) {
+    const blocker = node("p", "work-explanation");
+    blocker.append(node("strong", "", "Blocked: "), document.createTextNode(item.blocker));
+    copy.append(blocker);
+  }
+  if (item.next_action) {
+    const next = node("p", "work-explanation");
+    next.append(node("strong", "", "Next: "), document.createTextNode(item.next_action));
+    copy.append(next);
+  }
+
+  const side = node("div", "work-side");
+  const badges = node("div", "work-badges");
+  badges.append(statusTag(item.status));
+  if (item.overdue) badges.append(statusTag("overdue"));
+  side.append(badges);
+  if (interactive && (item.can_complete || item.can_snooze)) {
+    const actions = node("div", "work-actions");
+    if (item.can_complete) {
+      const complete = node("button", "primary-button", "Done");
+      complete.type = "button";
+      complete.addEventListener("click", () => updateWorkItem(item, "complete"));
+      actions.append(complete);
+    }
+    if (item.can_snooze) {
+      const snooze = node("button", "secondary-button", "Tomorrow");
+      snooze.type = "button";
+      snooze.addEventListener("click", () => updateWorkItem(item, "snooze"));
+      actions.append(snooze);
+    }
+    side.append(actions);
+  }
+  row.append(copy, side);
+  return row;
+}
+
+function jobRow(job) {
+  return workstationRow({
+    id: job.job_id,
+    title: job.title,
+    owner: "Office job",
+    priority: "NORMAL",
+    status: job.status,
+    next_action: job.error || `${job.kind} · started ${formatDate(job.created_at)}`,
+  }, false);
+}
+
+function notifyFinishedJobs(jobs) {
+  jobs.forEach((job) => {
+    if (["completed", "failed", "interrupted"].includes(job.status)
+        && !state.notifiedJobs.has(job.job_id)) {
+      state.notifiedJobs.add(job.job_id);
+      if (job.status === "completed") toast(`${job.title} completed.`);
+      else toast(`${job.title}: ${job.error || job.status}`, true);
+    }
+  });
+}
+
 function renderWork() {
   const container = $("#work-list");
   container.replaceChildren();
-  const activeTasks = (state.status?.active_tasks || []).map((task) => ({
-    title: task.title,
-    detail: `${task.assigned_agent || "Office"} · ${task.priority || "NORMAL"}`,
-    status: task.status,
-  }));
-  const jobs = (state.status?.jobs || []).slice(0, 12).map((job) => ({
-    title: job.title,
-    detail: job.error || `${job.kind} · ${formatDate(job.created_at)}`,
-    status: job.status,
-    job,
-  }));
-  const work = [...activeTasks, ...jobs].slice(0, 15);
-  if (!work.length) {
+  const workItems = (state.status?.work_items || []).slice(0, 10);
+  const jobs = (state.status?.jobs || []).filter((job) => ["queued", "running", "failed"].includes(job.status)).slice(0, 5);
+  if (!workItems.length && !jobs.length) {
     const empty = node("div", "empty-state");
     empty.append(node("strong", "", "Nothing needs attention"), node("p", "", "The office queue is clear."));
     container.append(empty);
     return;
   }
-  work.forEach((item) => {
-    const row = node("article", "work-item");
-    const copy = node("div");
-    copy.append(node("strong", "", item.title), node("p", "", item.detail));
-    row.append(copy, statusTag(item.status));
-    container.append(row);
+  workItems.forEach((item) => container.append(workstationRow(item)));
+  jobs.forEach((job) => container.append(jobRow(job)));
+  notifyFinishedJobs(state.status?.jobs || []);
+}
 
-    if (item.job && ["completed", "failed", "interrupted"].includes(item.job.status)
-        && !state.notifiedJobs.has(item.job.job_id)) {
-      state.notifiedJobs.add(item.job.job_id);
-      if (item.job.status === "completed") toast(`${item.job.title} completed.`);
-      else toast(`${item.job.title}: ${item.job.error || item.job.status}`, true);
-    }
-  });
+function renderAgenda() {
+  const container = $("#agenda-work-list");
+  container.replaceChildren();
+  const items = state.status?.work_items || [];
+  if (!items.length) {
+    const empty = node("div", "empty-state");
+    empty.append(node("strong", "", "Agenda clear"), node("p", "", "No open tasks, case blockers, or reminders were found."));
+    container.append(empty);
+    return;
+  }
+  items.forEach((item) => container.append(workstationRow(item)));
 }
 
 async function loadStatus() {
@@ -154,6 +239,7 @@ async function loadStatus() {
     state.status = await apiFetch("/api/status");
     renderHealth();
     renderWork();
+    renderAgenda();
   } catch (error) {
     if (error.message !== "Authentication required") {
       $("#health-dot").className = "status-dot warn";
@@ -489,7 +575,7 @@ async function triggerQuickAction(action) {
       method: "POST",
       body: JSON.stringify({ action }),
     });
-    toast(`Task queued as ${payload.task_id}.`);
+    toast(payload.message || `Task queued as ${payload.task_id}.`);
     await loadStatus();
   } catch (error) {
     toast(error.message, true);

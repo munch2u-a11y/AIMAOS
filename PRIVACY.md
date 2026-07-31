@@ -28,6 +28,7 @@ Redaction is heuristic and is not a data-loss-prevention guarantee. Matter summa
 - Matter work: generated `*-AI/workspace/` directories.
 - Task and matter index: `comms/office_database.sqlite`.
 - Compatibility board and IPC: `comms/`.
+- Local reminders and daily review state: generated `Marley-AI/workspace/calendar/` and `Marley-AI/workspace/workflow_review.json`.
 - Private agent memories: generated agent `workspace/.memory/` directories.
 - Optional email credentials: `~/.config/aimaos/credentials.env`.
 

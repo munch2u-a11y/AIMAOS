@@ -49,6 +49,12 @@ from core.comms.office_board import OfficeBoard
 from core.db.office_sqlite import OfficeSQLite
 from core.document_text import extract_document_text, validate_upload_content
 from core.jobs import get_job_manager
+from core.workflow_review import (
+    build_workstation_items,
+    complete_human_task,
+    run_daily_advancement_review,
+    snooze_human_task,
+)
 from core.version import __version__
 from core.security import (
     DEFAULT_UPLOAD_EXTENSIONS,
@@ -478,6 +484,7 @@ class AIMAOSUIHandler(SimpleHTTPRequestHandler):
                 return self._send_json({
                     "status": "success",
                     "active_tasks": [_public_task(task) for task in board.board.get("active_tasks", [])],
+                    "work_items": _browser_safe_value(build_workstation_items(board=board)),
                     "completed_task_count": len(board.board.get("completed_tasks", [])),
                     "agents": roster,
                     "daemon": _daemon_status(),
@@ -575,7 +582,10 @@ class AIMAOSUIHandler(SimpleHTTPRequestHandler):
 
         try:
             data = self._read_json()
-            work_routes = {"/api/chat", "/api/upload", "/api/generate_doc", "/api/quick_action"}
+            work_routes = {
+                "/api/chat", "/api/upload", "/api/generate_doc",
+                "/api/quick_action", "/api/work_item",
+            }
             if path in work_routes and not _setup_complete():
                 return self._error(
                     409, "Setup is incomplete. Run the setup wizard before starting office work.",
@@ -729,6 +739,13 @@ class AIMAOSUIHandler(SimpleHTTPRequestHandler):
                 return self._send_json({"status": "accepted", "job_id": job_id}, 202)
 
             if path == "/api/quick_action":
+                if str(data.get("action", "")) == "review_blockers":
+                    report = run_daily_advancement_review(force=True)
+                    return self._send_json({
+                        "status": "success",
+                        "message": "Priorities and blockers were refreshed.",
+                        "review": report,
+                    })
                 actions = {
                     "audit_all": ("Comprehensive Office & Matter Security Audit", "Finn", "HIGH"),
                     "synthesize_skills": ("Review Operational Lessons", "Zoe", "NORMAL"),
@@ -739,6 +756,29 @@ class AIMAOSUIHandler(SimpleHTTPRequestHandler):
                     raise SecurityValidationError("Unknown quick action.")
                 task_id = OfficeBoard().post_task(action[0], "User", action[1], action[2])
                 return self._send_json({"status": "success", "task_id": task_id})
+
+            if path == "/api/work_item":
+                task_id = str(data.get("task_id", "")).strip()
+                if not task_id or len(task_id) > 120 or not all(
+                    character.isalnum() or character in "_:-" for character in task_id
+                ):
+                    raise SecurityValidationError("Invalid work item identifier.")
+                action = str(data.get("action", "")).strip()
+                if action == "complete":
+                    try:
+                        complete_human_task(task_id)
+                    except ValueError as exc:
+                        raise SecurityValidationError(str(exc)) from exc
+                    message = "Follow-up completed and removed from the open agenda."
+                elif action == "snooze":
+                    try:
+                        snooze_human_task(task_id, str(data.get("due_date", "")))
+                    except ValueError as exc:
+                        raise SecurityValidationError(str(exc)) from exc
+                    message = "Follow-up moved to the selected date."
+                else:
+                    raise SecurityValidationError("Unknown work item action.")
+                return self._send_json({"status": "success", "message": message})
 
             if path == "/api/open_file":
                 if not bool(self.config.get("ui", {}).get("allow_native_open", True)):

@@ -6,7 +6,8 @@ This is a public beta, not a replacement for Microsoft 365, Google Workspace, a 
 
 ## What the beta includes
 
-- A task-oriented browser interface for Home, Matters, Create, Assistant, and Settings.
+- A task-oriented browser interface for Home, Agenda, Matters, Create, Assistant, and Settings.
+- A deterministic daily manager review that prioritizes blockers, dependencies, stale work, deadlines, matter next steps, and staff-owned follow-ups.
 - Matter-scoped file intake, living summaries, safe downloads, and optional native opening.
 - Template-driven DOCX generation with explicit draft and provenance warnings.
 - Persistent background-job state, daemon heartbeat reporting, and failure visibility.
@@ -61,6 +62,7 @@ Public-beta defaults are intentionally conservative:
 
 - `ui.host` is `127.0.0.1` and LAN binding is disabled.
 - Network tools, external mutations, and email sends are disabled.
+- Client communication requests become local attorney reminders; AIMAOS does not represent them as sent.
 - Shell-backed and self-modifying agent tools require developer mode and an additional opt-in.
 - Destructive and source-modifying maintenance tools are disabled in the beta configuration.
 - Document content cannot autonomously create agent tasks.
