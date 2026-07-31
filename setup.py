@@ -111,8 +111,87 @@ def materialize_pack(pack_name=DEFAULT_PACK, force=False):
     console.print(table)
     return True
 
+def configure_models_and_pull(selected_model=None, pull_permission=None, interactive=False):
+    console.print("\n[bold cyan]3. Model Configuration & Selection...[/bold cyan]")
+    office_cfg_path = os.path.join(BASE_DIR, "aimaos_config.yaml")
+    office_cfg = {}
+    if os.path.exists(office_cfg_path):
+        try:
+            with open(office_cfg_path, "r") as f:
+                office_cfg = yaml.safe_load(f) or {}
+        except Exception:
+            pass
+
+    current_default = office_cfg.get("llm", {}).get("default_model", "qwen3.5:4b")
+
+    if interactive and not selected_model:
+        console.print(f"Current configured default model: [bold yellow]{current_default}[/bold yellow]")
+        console.print("Select default Ollama model for AIMAOS agents:")
+        console.print("  [1] qwen3.5:4b (Recommended - balanced 4B reasoning)")
+        console.print("  [2] qwen3.5:2b (Lightweight 2B model)")
+        console.print("  [3] qwen3.5:0.8b (Ultra-fast short-turn model)")
+        console.print("  [4] Custom model tag...")
+
+        try:
+            choice = input("Enter choice [1-4] (default: 1): ").strip()
+            if choice == "2":
+                selected_model = "qwen3.5:2b"
+            elif choice == "3":
+                selected_model = "qwen3.5:0.8b"
+            elif choice == "4":
+                selected_model = input("Enter custom Ollama model tag (e.g. llama3.1:8b): ").strip() or current_default
+            else:
+                selected_model = "qwen3.5:4b"
+        except (KeyboardInterrupt, EOFError):
+            selected_model = current_default
+
+    chosen_model = selected_model or current_default
+
+    # Save to aimaos_config.yaml
+    llm_cfg = office_cfg.get("llm", {})
+    llm_cfg["default_model"] = chosen_model
+    office_cfg["llm"] = llm_cfg
+    with open(office_cfg_path, "w") as f:
+        yaml.dump(office_cfg, f, sort_keys=False)
+
+    console.print(f"  - Default Agent Model Set To: [bold green]{chosen_model}[/bold green]")
+
+    installed = get_installed_ollama_models()
+    is_installed = installed is not None and (chosen_model in installed or any(m.startswith(chosen_model + ":") for m in installed))
+
+    if is_installed:
+        console.print(f"  - Model status: [bold green]INSTALLED[/bold green]")
+    else:
+        console.print(f"  - Model status: [bold yellow]NOT INSTALLED[/bold yellow]")
+
+        # Ask permission to pull model if not specified via CLI
+        should_pull = False
+        if pull_permission is True:
+            should_pull = True
+        elif pull_permission is False:
+            should_pull = False
+        elif interactive and sys.stdin.isatty():
+            try:
+                ans = input(f"\n[?] Download model '{chosen_model}' via Ollama now? [y/N]: ").strip().lower()
+                should_pull = ans in ["y", "yes"]
+            except (KeyboardInterrupt, EOFError):
+                should_pull = False
+
+        if should_pull:
+            console.print(f"\n[bold cyan]Downloading '{chosen_model}' via Ollama...[/bold cyan]")
+            import subprocess
+            res = subprocess.run(["ollama", "pull", chosen_model])
+            if res.returncode == 0:
+                console.print(f"[bold green]Successfully pulled '{chosen_model}'.[/bold green]")
+            else:
+                console.print(f"[bold red]Failed to pull model '{chosen_model}'. You can run 'ollama pull {chosen_model}' manually.[/bold red]")
+        else:
+            console.print(f"\n[bold yellow]Notice: Model auto-pull skipped.[/bold yellow] To download manually later, run:\n  [bold white]ollama pull {chosen_model}[/bold white]")
+
+    return chosen_model
+
 def configure_workspaces():
-    console.print("\n[bold cyan]3. Configuring AIMAOS Mini-Agent Workspaces from aimaos_config.yaml...[/bold cyan]")
+    console.print("\n[bold cyan]4. Configuring AIMAOS Mini-Agent Workspaces from aimaos_config.yaml...[/bold cyan]")
     base_dir = BASE_DIR
 
     office_cfg = {}
@@ -174,7 +253,7 @@ def configure_workspaces():
     console.print(f"  - Configured IPC Comms Bus: [bold yellow]{comms_dir}[/bold yellow]")
 
 def configure_email_security(security_mode="READ_ONLY", approved_recipients=None, email_user=None):
-    console.print("\n[bold cyan]4. Hardware-Enforced Email Security Policy Setup...[/bold cyan]")
+    console.print("\n[bold cyan]5. Hardware-Enforced Email Security Policy Setup...[/bold cyan]")
     office_cfg_path = os.path.join(BASE_DIR, "aimaos_config.yaml")
     
     office_cfg = {}
@@ -229,6 +308,12 @@ def main():
                         help=f"Starter pack to materialize (default: {DEFAULT_PACK}).")
     parser.add_argument("--force", action="store_true",
                         help="Re-materialize an agent workspace even if it exists.")
+    parser.add_argument("--model", default=None,
+                        help="Default Ollama model to assign (e.g. qwen3.5:4b, qwen3.5:2b, llama3.1:8b).")
+    parser.add_argument("--pull-models", action="store_true", default=None,
+                        help="Automatically download missing Ollama models during setup.")
+    parser.add_argument("--no-pull-models", action="store_false", dest="pull_models",
+                        help="Do not download missing Ollama models during setup.")
     parser.add_argument("--email-security-mode", default="READ_ONLY", choices=["READ_ONLY", "WHITELIST_ONLY", "DISABLED"],
                         help="Hardware-enforced email security policy mode (default: READ_ONLY).")
     parser.add_argument("--approved-recipients", default=None,
@@ -237,9 +322,12 @@ def main():
                         help="Optional company email address.")
     args = parser.parse_args()
 
+    is_interactive = sys.stdin.isatty()
+
     console.print(Panel("[bold cyan]AIMAOS SETUP WIZARD[/bold cyan]\nModel-Agnostic Multi-Agent Operating System Configurator", border_style="cyan"))
     run_diagnostics()
     materialize_pack(args.pack, force=args.force)
+    configure_models_and_pull(selected_model=args.model, pull_permission=args.pull_models, interactive=is_interactive)
     configure_workspaces()
     configure_email_security(args.email_security_mode, args.approved_recipients, args.email_user)
     console.print("\n[bold green]SUCCESS: AIMAOS Model-Agnostic Setup Completed![/bold green]")
