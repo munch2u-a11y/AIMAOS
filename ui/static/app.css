@@ -253,6 +253,44 @@ dialog::backdrop { background: rgba(13, 22, 33, .58); }
   .work-item.overdue { background: #2f201e; }
 }
 
+.status-dot.pause {
+  background: #f59e0b;
+  box-shadow: 0 0 0 3px rgba(245, 158, 11, 0.2);
+}
+
+.mini-daemon-button {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface);
+  color: var(--text);
+  font-size: 0.76rem;
+  font-weight: 750;
+  padding: 0.28rem 0.65rem;
+  cursor: pointer;
+  margin-left: 0.5rem;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  transition: all 0.15s ease;
+}
+
+.mini-daemon-button.action-pause:hover {
+  background: #fef3c7;
+  color: #92400e;
+  border-color: #f59e0b;
+}
+
+.mini-daemon-button.action-resume {
+  background: #dcfce7;
+  color: #166534;
+  border-color: #22c55e;
+}
+
+.mini-daemon-button.action-resume:hover {
+  background: #bbf7d0;
+}
+
+
 .work-title-link {
   background: none;
   border: none;

@@ -38,6 +38,20 @@ def test_browser_safe_values_redact_application_root():
     assert aimaos_ui.AIMAOS_ROOT not in repr(value)
 
 
+def test_daemon_pause_control_round_trip(monkeypatch, tmp_path):
+    control_path = tmp_path / "comms" / "daemon_control.json"
+    monkeypatch.setattr(aimaos_ui, "DAEMON_CONTROL_PATH", str(control_path))
+
+    assert aimaos_ui._read_daemon_control() == {"pause_requested": False}
+    paused = aimaos_ui._set_daemon_pause_request(True)
+    assert paused["pause_requested"] is True
+    assert aimaos_ui._read_daemon_control()["pause_requested"] is True
+
+    resumed = aimaos_ui._set_daemon_pause_request(False)
+    assert resumed["pause_requested"] is False
+    assert aimaos_ui._read_daemon_control()["pause_requested"] is False
+
+
 def test_dashboard_case_paths_reject_private_runtime_files(tmp_path):
     private = tmp_path / ".case_agent" / "mrag_data" / "memory.json"
     private.parent.mkdir(parents=True)

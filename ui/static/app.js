@@ -79,7 +79,9 @@ function bindNavigation() {
   $$('[data-view-target]').forEach((button) => {
     button.addEventListener("click", () => showView(button.dataset.viewTarget));
   });
+  $("#btn-toggle-daemon")?.addEventListener("click", toggleDaemonPause);
 }
+
 
 function formatBytes(bytes) {
   const value = Number(bytes || 0);
@@ -98,9 +100,39 @@ function renderHealth() {
   if (!state.status) return;
   const daemon = state.status.daemon || {};
   const responsive = Boolean(daemon.responsive);
-  $("#health-dot").className = `status-dot ${responsive ? "good" : "warn"}`;
-  $("#health-label").textContent = responsive ? "Office ready" : "Office service unavailable";
-  $("#daemon-metric").textContent = responsive ? "Ready" : "Check service";
+  const pauseRequested = Boolean(daemon.pause_requested);
+  const isPaused = daemon.state === "paused";
+
+  const dot = $("#health-dot");
+  const label = $("#health-label");
+  const daemonBtn = $("#btn-toggle-daemon");
+
+  if (!responsive) {
+    dot.className = "status-dot warn";
+    label.textContent = "Office service unavailable";
+    if (daemonBtn) {
+      daemonBtn.textContent = "Start Agents";
+      daemonBtn.className = "mini-daemon-button action-resume";
+    }
+  } else if (pauseRequested || isPaused) {
+    dot.className = "status-dot pause";
+    label.textContent = isPaused ? "Office paused" : "Pausing (Finish task)";
+    if (daemonBtn) {
+      daemonBtn.textContent = "Resume Agents";
+      daemonBtn.className = "mini-daemon-button action-resume";
+      daemonBtn.title = "Click to resume autonomous agent pulse";
+    }
+  } else {
+    dot.className = "status-dot good";
+    label.textContent = "Office ready";
+    if (daemonBtn) {
+      daemonBtn.textContent = "Pause Agents";
+      daemonBtn.className = "mini-daemon-button action-pause";
+      daemonBtn.title = "Pause agents safely after current task completes";
+    }
+  }
+
+  $("#daemon-metric").textContent = isPaused ? "Paused" : (pauseRequested ? "Pausing…" : (responsive ? "Ready" : "Check service"));
   $("#daemon-detail").textContent = daemon.current_task?.title
     ? `${daemon.current_task.agent}: ${daemon.current_task.title}`
     : `State: ${daemon.state || "unknown"}`;
@@ -112,6 +144,20 @@ function renderHealth() {
   ));
   $("#attention-metric").textContent = String(needsStaff.length);
 }
+
+async function toggleDaemonPause() {
+  try {
+    const daemon = state.status?.daemon || {};
+    const shouldResume = !daemon.responsive || daemon.pause_requested || daemon.state === "paused";
+    const endpoint = shouldResume ? "/api/daemon/resume" : "/api/daemon/pause";
+    const payload = await apiFetch(endpoint, { method: "POST", body: "{}" });
+    toast(payload.message);
+    await loadStatus();
+  } catch (error) {
+    toast(error.message, true);
+  }
+}
+
 
 function statusTag(status) {
   return node("span", `status-tag ${status || ""}`, String(status || "queued").replaceAll("_", " "));

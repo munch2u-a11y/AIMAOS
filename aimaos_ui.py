@@ -202,8 +202,35 @@ def _template_catalog() -> list[dict]:
     return catalog
 
 
+DAEMON_CONTROL_PATH = os.path.join(AIMAOS_ROOT, "comms", "daemon_control.json")
+
+
+def _read_daemon_control() -> dict:
+    try:
+        with open(DAEMON_CONTROL_PATH, "r", encoding="utf-8") as handle:
+            return json.load(handle)
+    except (OSError, json.JSONDecodeError):
+        return {"pause_requested": False}
+
+
+def _set_daemon_pause_request(paused: bool, *, requested_by: str = "user") -> dict:
+    os.makedirs(os.path.dirname(DAEMON_CONTROL_PATH), exist_ok=True)
+    payload = {
+        "pause_requested": paused,
+        "requested_by": requested_by,
+        "updated_at": datetime.now().isoformat(),
+    }
+    temp_path = DAEMON_CONTROL_PATH + f".{os.getpid()}.tmp"
+    with open(temp_path, "w", encoding="utf-8") as handle:
+        json.dump(payload, handle, indent=2)
+    os.replace(temp_path, DAEMON_CONTROL_PATH)
+    return payload
+
+
 def _daemon_status() -> dict:
     path = os.path.join(AIMAOS_ROOT, "comms", "daemon_status.json")
+    control = _read_daemon_control()
+    pause_requested = bool(control.get("pause_requested"))
     try:
         with open(path, "r", encoding="utf-8") as handle:
             status = json.load(handle)
@@ -215,9 +242,12 @@ def _daemon_status() -> dict:
         except (OSError, TypeError, ValueError):
             pass
         status["responsive"] = process_alive or (datetime.now() - heartbeat).total_seconds() < 90
+        status["pause_requested"] = pause_requested
+        if pause_requested and status.get("state") in {"polling", "working", "ready"}:
+            status["pause_pending"] = True
         return status
     except (OSError, ValueError, json.JSONDecodeError):
-        return {"state": "not_running", "responsive": False, "last_heartbeat": None}
+        return {"state": "not_running", "responsive": False, "pause_requested": pause_requested, "last_heartbeat": None}
 
 
 def _unique_destination(folder: str, filename: str) -> str:
@@ -704,12 +734,40 @@ class AIMAOSUIHandler(SimpleHTTPRequestHandler):
                 "/api/chat", "/api/upload", "/api/generate_doc",
                 "/api/quick_action", "/api/work_item",
                 "/api/document_review_note", "/api/document_review_submit",
+                "/api/daemon/pause", "/api/daemon/resume", "/api/daemon/toggle",
             }
             if path in work_routes and not _setup_complete():
                 return self._error(
                     409, "Setup is incomplete. Run the setup wizard before starting office work.",
                     code="setup_required",
                 )
+            if path in {"/api/daemon/pause", "/api/daemon/resume", "/api/daemon/toggle"}:
+                status = _daemon_status()
+                current_pause = status.get("pause_requested", False)
+                if path == "/api/daemon/pause":
+                    target_pause = True
+                elif path == "/api/daemon/resume":
+                    target_pause = False
+                else:
+                    target_pause = not current_pause
+
+                _set_daemon_pause_request(target_pause)
+
+                if not target_pause and not status.get("responsive"):
+                    _start_daemon_process()
+
+                message = (
+                    "Pause requested. Agents will clock out as soon as the current task completes."
+                    if target_pause
+                    else "Office resumed. Agents are clocking in."
+                )
+                return self._send_json({
+                    "status": "success",
+                    "pause_requested": target_pause,
+                    "message": message,
+                    "daemon": _daemon_status(),
+                })
+
             if path == "/api/chat":
                 message = str(data.get("message", "")).strip()
                 if not message or len(message) > 10_000:

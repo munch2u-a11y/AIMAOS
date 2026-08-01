@@ -310,6 +310,14 @@ class OfficeDaemon:
         except Exception as e:
             logger.warning(f"[{name}] reflection failed: {e}")
 
+    def is_pause_requested(self) -> bool:
+        control_path = os.path.join(AIMAOS_ROOT, "comms", "daemon_control.json")
+        try:
+            with open(control_path, "r", encoding="utf-8") as handle:
+                return bool(json.load(handle).get("pause_requested"))
+        except Exception:
+            return False
+
     def run(self, max_cycles=None):
         write_daemon_status("ready", cycle=self.cycle)
         print("====================================================================")
@@ -325,17 +333,38 @@ class OfficeDaemon:
         signal.signal(signal.SIGTERM, _stop)
 
         while self._running:
+            if self.is_pause_requested():
+                print("\n[Office Daemon] Pause requested — finishing turn then clocking agents out.")
+                write_daemon_status("paused", cycle=self.cycle)
+                for name in self.agents:
+                    try:
+                        self.board.update_agent_status(name, "off_duty")
+                    except Exception:
+                        pass
+                while self._running and self.is_pause_requested():
+                    time.sleep(1.0)
+                if not self._running:
+                    break
+                print("\n[Office Daemon] Resuming office operations — agents clocking in...")
+                write_daemon_status("ready", cycle=self.cycle)
+
             try:
                 self.run_cycle()
             except Exception as e:
                 logger.exception(f"Office pulse error: {e}")
                 print(f"  [Daemon] Pulse error (office continues): {e}")
                 write_daemon_status("degraded", cycle=self.cycle, error=e)
+
+            if self.is_pause_requested():
+                print("  [Daemon] Current task turn completed. Pause requested — clocking agents out.")
+                write_daemon_status("paused", cycle=self.cycle)
+
             if max_cycles is not None and self.cycle >= max_cycles:
                 print(f"\n[Office Daemon] Reached max cycles ({max_cycles}); clocking out.")
                 break
-            if self._running:
+            if self._running and not self.is_pause_requested():
                 time.sleep(self._next_sleep_interval())
+
 
         for name in self.agents:
             try:

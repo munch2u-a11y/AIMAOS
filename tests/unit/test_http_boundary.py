@@ -129,3 +129,52 @@ def test_document_review_http_flow(monkeypatch, tmp_path):
         server.shutdown()
         server.server_close()
         thread.join(timeout=3)
+
+
+def test_daemon_pause_resume_http_flow(monkeypatch):
+    monkeypatch.delenv("AIMAOS_UI_TOKEN", raising=False)
+    monkeypatch.setattr(aimaos_ui, "_setup_complete", lambda: True)
+    daemon = {"responsive": True, "state": "ready", "pause_requested": False}
+    starts = []
+
+    def daemon_status():
+        return dict(daemon)
+
+    def set_pause_request(paused, *, requested_by="user"):
+        daemon["pause_requested"] = paused
+        daemon["state"] = "paused" if paused else "ready"
+        return {"pause_requested": paused, "requested_by": requested_by}
+
+    monkeypatch.setattr(aimaos_ui, "_daemon_status", daemon_status)
+    monkeypatch.setattr(aimaos_ui, "_set_daemon_pause_request", set_pause_request)
+    monkeypatch.setattr(aimaos_ui, "_start_daemon_process", lambda: starts.append(True))
+    try:
+        server = ThreadingHTTPServer(("127.0.0.1", 0), aimaos_ui.AIMAOSUIHandler)
+    except PermissionError:
+        pytest.skip("execution sandbox does not permit loopback sockets")
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    base = f"http://127.0.0.1:{server.server_port}"
+    try:
+        with _request(f"{base}/api/bootstrap") as response:
+            csrf = json.load(response)["csrf_token"]
+
+        with _request(
+            f"{base}/api/daemon/pause", method="POST", csrf=csrf, body={},
+        ) as response:
+            paused = json.load(response)
+        assert paused["pause_requested"] is True
+        assert paused["daemon"]["state"] == "paused"
+        assert starts == []
+
+        daemon["responsive"] = False
+        with _request(
+            f"{base}/api/daemon/resume", method="POST", csrf=csrf, body={},
+        ) as response:
+            resumed = json.load(response)
+        assert resumed["pause_requested"] is False
+        assert starts == [True]
+    finally:
+        server.shutdown()
+        server.server_close()
+        thread.join(timeout=3)
