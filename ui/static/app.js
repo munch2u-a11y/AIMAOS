@@ -137,19 +137,80 @@ async function updateWorkItem(item, action) {
   }
 }
 
+function findCaseSlug(matterName) {
+  if (!matterName || !state.cases || !state.cases.length) return null;
+  const lower = String(matterName).trim().toLowerCase();
+  const found = state.cases.find((c) =>
+    (c.client_name && c.client_name.toLowerCase() === lower) ||
+    (c.client_slug && c.client_slug.toLowerCase() === lower) ||
+    (c.matter_type && c.matter_type.toLowerCase() === lower) ||
+    (c.client_name && c.client_name.toLowerCase().includes(lower))
+  );
+  return found ? found.client_slug : null;
+}
+
+async function openMatterFromWorkItem(slug, matterName) {
+  const targetSlug = slug || findCaseSlug(matterName);
+  if (!targetSlug) {
+    toast(`No matter files found matching "${matterName || "this item"}".`, true);
+    return;
+  }
+  showView("matters");
+  await selectMatter(targetSlug);
+  toast(`Opened matter details and files for ${matterName || targetSlug}.`);
+}
+
 function workstationRow(item, interactive = true) {
-  const row = node("article", `work-item priority-${String(item.priority || "normal").toLowerCase()}${item.overdue ? " overdue" : ""}`);
+  const targetSlug = item.client_slug || findCaseSlug(item.matter);
+  const row = node("article", `work-item priority-${String(item.priority || "normal").toLowerCase()}${item.overdue ? " overdue" : ""}${targetSlug ? " clickable-item" : ""}`);
   const copy = node("div", "work-copy");
-  copy.append(node("strong", "", item.title || "Untitled work item"));
+
+  const titleText = item.title || "Untitled work item";
+  if (targetSlug) {
+    const titleBtn = node("button", "work-title-link", titleText);
+    titleBtn.type = "button";
+    titleBtn.title = `Click to view matter files for ${item.matter || targetSlug}`;
+    titleBtn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      openMatterFromWorkItem(targetSlug, item.matter);
+    });
+    copy.append(titleBtn);
+  } else {
+    copy.append(node("strong", "", titleText));
+  }
 
   const meta = node("div", "work-meta");
-  [item.matter, item.owner, item.priority, item.due_date ? `Due ${item.due_date}` : null]
+  if (item.matter) {
+    if (targetSlug) {
+      const matterBadge = node("button", "matter-tag clickable", item.matter);
+      matterBadge.type = "button";
+      matterBadge.title = `Open matter: ${item.matter}`;
+      matterBadge.addEventListener("click", (e) => {
+        e.stopPropagation();
+        openMatterFromWorkItem(targetSlug, item.matter);
+      });
+      meta.append(matterBadge);
+    } else {
+      meta.append(node("span", "status-tag", item.matter));
+    }
+  }
+
+  [item.owner, item.priority, item.due_date ? `Due ${item.due_date}` : null]
     .filter(Boolean)
     .forEach((value) => meta.append(node("span", "", value)));
   copy.append(meta);
+
   if (item.blocker) {
     const blocker = node("p", "work-explanation");
     blocker.append(node("strong", "", "Blocked: "), document.createTextNode(item.blocker));
+    if (targetSlug) {
+      blocker.title = "Click to open matter files and resolve blocker";
+      blocker.classList.add("clickable-text");
+      blocker.addEventListener("click", (e) => {
+        e.stopPropagation();
+        openMatterFromWorkItem(targetSlug, item.matter);
+      });
+    }
     copy.append(blocker);
   }
   if (item.next_action) {
@@ -163,25 +224,42 @@ function workstationRow(item, interactive = true) {
   badges.append(statusTag(item.status));
   if (item.overdue) badges.append(statusTag("overdue"));
   side.append(badges);
-  if (interactive && (item.can_complete || item.can_snooze)) {
+
+  if (interactive) {
     const actions = node("div", "work-actions");
+    if (targetSlug) {
+      const viewMatterBtn = node("button", "secondary-button", "View Matter & Files");
+      viewMatterBtn.type = "button";
+      viewMatterBtn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        openMatterFromWorkItem(targetSlug, item.matter);
+      });
+      actions.append(viewMatterBtn);
+    }
     if (item.can_complete) {
       const complete = node("button", "primary-button", "Done");
       complete.type = "button";
-      complete.addEventListener("click", () => updateWorkItem(item, "complete"));
+      complete.addEventListener("click", (e) => {
+        e.stopPropagation();
+        updateWorkItem(item, "complete");
+      });
       actions.append(complete);
     }
     if (item.can_snooze) {
       const snooze = node("button", "secondary-button", "Tomorrow");
       snooze.type = "button";
-      snooze.addEventListener("click", () => updateWorkItem(item, "snooze"));
+      snooze.addEventListener("click", (e) => {
+        e.stopPropagation();
+        updateWorkItem(item, "snooze");
+      });
       actions.append(snooze);
     }
-    side.append(actions);
+    if (actions.children.length > 0) side.append(actions);
   }
   row.append(copy, side);
   return row;
 }
+
 
 function jobRow(job) {
   return workstationRow({

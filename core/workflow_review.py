@@ -18,7 +18,7 @@ from core.atomic_io import atomic_write_json
 from core.comms.office_board import OfficeBoard
 from core.db.office_sqlite import OfficeSQLite
 from core.local_calendar import LocalCalendar
-from core.security import load_security_config
+from core.security import load_security_config, normalize_slug
 
 
 def _find_aimaos_root() -> str:
@@ -374,12 +374,15 @@ def build_workstation_items(
         due = details.get("due_date")
         due_value = _due_date(due)
         requires_human = bool(details.get("requires_human"))
+        client_name = details.get("client_name")
+        client_slug = details.get("client_slug") or (normalize_slug(client_name) if client_name else None)
         items.append({
             "id": task_id,
             "title": _clean(task.get("title"), 200),
             "kind": _clean(details.get("work_type"), 60) or "agent_work",
             "owner": _clean(details.get("owner") or task.get("assigned_agent"), 80) or "Office",
-            "matter": _clean(details.get("client_name"), 120) or None,
+            "matter": _clean(client_name, 120) or None,
+            "client_slug": client_slug,
             "priority": task.get("priority", "NORMAL"),
             "status": task.get("status", "queued"),
             "due_date": due,
@@ -399,12 +402,15 @@ def build_workstation_items(
             continue
         due = event.get("date")
         due_value = _due_date(due)
+        event_matter = event.get("client_name")
+        event_slug = event.get("client_slug") or (normalize_slug(event_matter) if event_matter else None)
         items.append({
             "id": str(event.get("id")),
             "title": _clean(event.get("title"), 200),
             "kind": _clean(event.get("kind"), 60) or "calendar_event",
             "owner": "Office",
-            "matter": _clean(event.get("client_name"), 120) or None,
+            "matter": _clean(event_matter, 120) or None,
+            "client_slug": event_slug,
             "priority": event.get("priority", "NORMAL"),
             "status": event.get("status", "open"),
             "due_date": due,
@@ -429,6 +435,7 @@ def build_workstation_items(
         except (OSError, json.JSONDecodeError):
             continue
         client_name = _clean(case_state.get("client_name") or case.get("client_name"), 120)
+        case_slug = _clean(case.get("client_slug"), 120)
         steps = [
             cleaned for cleaned in (
                 _clean(step, 300) for step in (case_state.get("next_steps") or [])[:5]
@@ -450,6 +457,7 @@ def build_workstation_items(
                 "kind": "case_advancement",
                 "owner": "Matter team",
                 "matter": client_name,
+                "client_slug": case_slug,
                 "priority": "HIGH" if missing or urgent else "NORMAL",
                 "status": "blocked" if missing else "open",
                 "due_date": None,
@@ -467,6 +475,7 @@ def build_workstation_items(
                 "can_snooze": False,
                 "source": "case_record",
             })
+
     return sorted(items, key=_item_sort_key)[:200]
 
 
