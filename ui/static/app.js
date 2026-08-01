@@ -6,6 +6,8 @@ const state = {
   cases: [],
   templates: [],
   selectedMatter: null,
+  reviewDocument: null,
+  selectedReviewLine: null,
   status: null,
   notifiedJobs: new Set(),
 };
@@ -149,19 +151,26 @@ function findCaseSlug(matterName) {
   return found ? found.client_slug : null;
 }
 
-async function openMatterFromWorkItem(slug, matterName) {
+async function openMatterFromWorkItem(slug, matterName, filePath = null) {
   const targetSlug = slug || findCaseSlug(matterName);
   if (!targetSlug) {
     toast(`No matter files found matching "${matterName || "this item"}".`, true);
     return;
   }
   showView("matters");
-  await selectMatter(targetSlug);
-  toast(`Opened matter details and files for ${matterName || targetSlug}.`);
+  const matter = await selectMatter(targetSlug);
+  if (!matter) return;
+  if (filePath) {
+    await openDocumentReview(targetSlug, filePath);
+  } else {
+    toast(`Opened matter details and files for ${matterName || targetSlug}.`);
+  }
 }
 
 function workstationRow(item, interactive = true) {
-  const targetSlug = item.client_slug || findCaseSlug(item.matter);
+  const reviewTarget = item.review_target || {};
+  const targetSlug = reviewTarget.client_slug || item.client_slug || findCaseSlug(item.matter);
+  const targetFile = reviewTarget.file_path || null;
   const row = node("article", `work-item priority-${String(item.priority || "normal").toLowerCase()}${item.overdue ? " overdue" : ""}${targetSlug ? " clickable-item" : ""}`);
   const copy = node("div", "work-copy");
 
@@ -172,7 +181,7 @@ function workstationRow(item, interactive = true) {
     titleBtn.title = `Click to view matter files for ${item.matter || targetSlug}`;
     titleBtn.addEventListener("click", (e) => {
       e.stopPropagation();
-      openMatterFromWorkItem(targetSlug, item.matter);
+      openMatterFromWorkItem(targetSlug, item.matter, targetFile);
     });
     copy.append(titleBtn);
   } else {
@@ -187,7 +196,7 @@ function workstationRow(item, interactive = true) {
       matterBadge.title = `Open matter: ${item.matter}`;
       matterBadge.addEventListener("click", (e) => {
         e.stopPropagation();
-        openMatterFromWorkItem(targetSlug, item.matter);
+        openMatterFromWorkItem(targetSlug, item.matter, targetFile);
       });
       meta.append(matterBadge);
     } else {
@@ -208,7 +217,7 @@ function workstationRow(item, interactive = true) {
       blocker.classList.add("clickable-text");
       blocker.addEventListener("click", (e) => {
         e.stopPropagation();
-        openMatterFromWorkItem(targetSlug, item.matter);
+        openMatterFromWorkItem(targetSlug, item.matter, targetFile);
       });
     }
     copy.append(blocker);
@@ -228,11 +237,13 @@ function workstationRow(item, interactive = true) {
   if (interactive) {
     const actions = node("div", "work-actions");
     if (targetSlug) {
-      const viewMatterBtn = node("button", "secondary-button", "View Matter & Files");
+      const viewMatterBtn = node(
+        "button", "secondary-button", targetFile ? "Review file" : "View Matter & Files"
+      );
       viewMatterBtn.type = "button";
       viewMatterBtn.addEventListener("click", (e) => {
         e.stopPropagation();
-        openMatterFromWorkItem(targetSlug, item.matter);
+        openMatterFromWorkItem(targetSlug, item.matter, targetFile);
       });
       actions.append(viewMatterBtn);
     }
@@ -371,6 +382,193 @@ function fileAction(label, handler) {
   return button;
 }
 
+function isReviewableFile(path) {
+  const extension = String(path || "").toLowerCase().match(/\.[a-z0-9]+$/)?.[0] || "";
+  return [".txt", ".md", ".csv", ".json", ".yaml", ".yml", ".rtf", ".docx", ".pdf"].includes(extension);
+}
+
+function selectReviewLine(lineNumber) {
+  state.selectedReviewLine = Number(lineNumber);
+  $$(".document-line").forEach((line) => {
+    const selected = Number(line.dataset.lineNumber) === state.selectedReviewLine;
+    line.classList.toggle("selected", selected);
+    line.setAttribute("aria-pressed", selected ? "true" : "false");
+  });
+  const line = (state.reviewDocument?.lines || []).find((item) => item.number === state.selectedReviewLine);
+  $("#document-review-selection").textContent = line
+    ? `Line ${line.number}: ${line.text || "(blank line)"}`
+    : "Choose a line in the document.";
+  if (line) $("#document-review-comment").focus();
+}
+
+async function updateReviewNote(noteId, action) {
+  const review = state.reviewDocument;
+  if (!review) return;
+  try {
+    const payload = await apiFetch("/api/document_review_note", {
+      method: "POST",
+      body: JSON.stringify({
+        slug: review.slug,
+        path: review.file.path,
+        note_id: noteId,
+        action,
+      }),
+    });
+    toast(payload.message);
+    await openDocumentReview(review.slug, review.file.path, { preserveSelection: true });
+  } catch (error) {
+    toast(error.message, true);
+  }
+}
+
+function renderReviewNotes() {
+  const container = $("#document-review-notes");
+  container.replaceChildren();
+  const notes = state.reviewDocument?.notes || [];
+  const openCount = notes.filter((note) => note.status !== "resolved").length;
+  $("#document-review-note-count").textContent = `${openCount} open`;
+  $("#document-review-submit").disabled = openCount === 0;
+  if (!notes.length) {
+    container.append(node("p", "form-help", "No notes yet. Click a document line to begin."));
+    return;
+  }
+  notes.forEach((note) => {
+    const card = node("article", `review-note-card${note.status === "resolved" ? " resolved" : ""}`);
+    const heading = node("div", "section-row");
+    const lineButton = node("button", "text-button", `${note.kind || "note"} · line ${note.line_number}`);
+    lineButton.type = "button";
+    lineButton.addEventListener("click", () => {
+      selectReviewLine(note.line_number);
+      const target = $(`.document-line[data-line-number="${note.line_number}"]`);
+      target?.scrollIntoView({ block: "center" });
+    });
+    heading.append(lineButton, statusTag(note.status || "open"));
+    card.append(heading);
+    if (note.stale) card.append(node("p", "warning-note", "The document changed after this note was added."));
+    card.append(node("p", "review-note-excerpt", note.line_text || "(blank line)"));
+    card.append(node("p", "", note.comment));
+    const action = node(
+      "button", "secondary-button", note.status === "resolved" ? "Reopen" : "Resolve"
+    );
+    action.type = "button";
+    action.addEventListener("click", () => updateReviewNote(
+      note.id, note.status === "resolved" ? "reopen" : "resolve"
+    ));
+    card.append(action);
+    container.append(card);
+  });
+}
+
+function renderDocumentReview() {
+  const review = state.reviewDocument;
+  if (!review) return;
+  $("#document-review-title").textContent = review.file.name;
+  $("#document-review-meta").textContent = `${formatBytes(review.file.size)} · ${formatDate(review.file.modified_at)}`;
+  $("#document-review-status").textContent = review.extraction.detail;
+  $("#document-review-status").classList.toggle(
+    "warning-note", review.extraction.status !== "extracted"
+  );
+  $("#document-review-native").hidden = !state.bootstrap?.native_open_enabled;
+
+  const lines = $("#document-review-lines");
+  lines.replaceChildren();
+  const notesByLine = new Map();
+  (review.notes || []).forEach((note) => {
+    if (!notesByLine.has(note.line_number)) notesByLine.set(note.line_number, []);
+    notesByLine.get(note.line_number).push(note);
+  });
+  if (!(review.lines || []).length) {
+    const empty = node("div", "empty-state compact-empty");
+    empty.append(
+      node("strong", "", "No text preview available"),
+      node("p", "", "Open the document in its system application for review.")
+    );
+    lines.append(empty);
+  } else {
+    review.lines.forEach((line) => {
+      const button = node("button", "document-line");
+      button.type = "button";
+      button.dataset.lineNumber = String(line.number);
+      button.setAttribute("aria-pressed", "false");
+      button.append(
+        node("span", "document-line-number", line.number),
+        node("span", "document-line-text", line.text || " ")
+      );
+      const lineNotes = notesByLine.get(line.number) || [];
+      if (lineNotes.length) {
+        button.classList.add("has-notes");
+        button.append(node("span", "line-note-count", lineNotes.length));
+      }
+      button.addEventListener("click", () => selectReviewLine(line.number));
+      lines.append(button);
+    });
+  }
+  renderReviewNotes();
+  selectReviewLine(state.selectedReviewLine);
+}
+
+async function openDocumentReview(slug, path, options = {}) {
+  try {
+    const selected = options.preserveSelection ? state.selectedReviewLine : null;
+    const payload = await apiFetch(
+      `/api/document_review?slug=${encodeURIComponent(slug)}&path=${encodeURIComponent(path)}`
+    );
+    state.reviewDocument = { ...payload, slug };
+    state.selectedReviewLine = selected;
+    renderDocumentReview();
+    const dialog = $("#document-review-dialog");
+    if (!dialog.open) dialog.showModal();
+  } catch (error) {
+    toast(error.message, true);
+  }
+}
+
+async function saveReviewNote(event) {
+  event.preventDefault();
+  const review = state.reviewDocument;
+  if (!review || !state.selectedReviewLine) {
+    toast("Choose a document line before adding a note.", true);
+    return;
+  }
+  const submitter = event.submitter || event.currentTarget.querySelector('button[type="submit"]');
+  submitter.disabled = true;
+  try {
+    const payload = await apiFetch("/api/document_review_note", {
+      method: "POST",
+      body: JSON.stringify({
+        slug: review.slug,
+        path: review.file.path,
+        line_number: state.selectedReviewLine,
+        kind: $("#document-review-kind").value,
+        comment: $("#document-review-comment").value,
+        action: "create",
+      }),
+    });
+    $("#document-review-comment").value = "";
+    toast(payload.message);
+    await openDocumentReview(review.slug, review.file.path, { preserveSelection: true });
+  } catch (error) {
+    toast(error.message, true);
+  } finally {
+    submitter.disabled = false;
+  }
+}
+
+async function submitDocumentFeedback() {
+  const review = state.reviewDocument;
+  if (!review) return;
+  try {
+    const payload = await apiFetch("/api/document_review_submit", {
+      method: "POST",
+      body: JSON.stringify({ slug: review.slug, path: review.file.path }),
+    });
+    toast(payload.message);
+    await loadStatus();
+  } catch (error) {
+    toast(error.message, true);
+  }
+}
+
 async function downloadFile(slug, path, filename) {
   try {
     const headers = new Headers();
@@ -424,6 +622,9 @@ async function selectMatter(slug) {
       const copy = node("div");
       copy.append(node("strong", "", file.name), node("small", "", `${formatBytes(file.size)} · ${formatDate(file.modified_at)}`));
       const actions = node("div", "file-actions");
+      if (isReviewableFile(file.path)) {
+        actions.append(fileAction("Review & comment", () => openDocumentReview(slug, file.path)));
+      }
       actions.append(fileAction("Download", () => downloadFile(slug, file.path, file.name)));
       if (state.bootstrap?.native_open_enabled) {
         actions.append(fileAction("Open", () => openNativeFile(slug, file.path)));
@@ -431,8 +632,10 @@ async function selectMatter(slug) {
       row.append(copy, actions);
       files.append(row);
     });
+    return payload;
   } catch (error) {
     toast(error.message, true);
+    return null;
   }
 }
 
@@ -712,6 +915,19 @@ function bindEvents() {
     showView("assistant");
     $("#assistant-input").focus();
   });
+  $("#document-review-close").addEventListener("click", () => {
+    $("#document-review-dialog").close();
+  });
+  $("#document-review-download").addEventListener("click", () => {
+    const review = state.reviewDocument;
+    if (review) downloadFile(review.slug, review.file.path, review.file.name);
+  });
+  $("#document-review-native").addEventListener("click", () => {
+    const review = state.reviewDocument;
+    if (review) openNativeFile(review.slug, review.file.path);
+  });
+  $("#document-review-note-form").addEventListener("submit", saveReviewNote);
+  $("#document-review-submit").addEventListener("click", submitDocumentFeedback);
   $$("[data-quick-action]").forEach((button) => {
     button.addEventListener("click", () => triggerQuickAction(button.dataset.quickAction));
   });

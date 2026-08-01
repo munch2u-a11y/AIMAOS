@@ -43,6 +43,7 @@ From the same machine, open `http://127.0.0.1:8080`. Confirm that:
 4. The file can be downloaded and no absolute filesystem path appears in browser responses.
 5. A generated draft displays the human-review notice.
 6. “Refresh blockers” produces an idempotent Agenda, and a synthetic client-update task can be snoozed and completed without sending a message.
+7. A synthetic DOCX or PDF can be reviewed in the dashboard, a line note creates `AIMAOS_REVIEW_NOTES.md`, and “Send open notes to agent” creates only one correction task.
 
 Delete the synthetic matter data after testing according to your retention process.
 

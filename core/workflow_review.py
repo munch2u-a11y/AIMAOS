@@ -18,7 +18,7 @@ from core.atomic_io import atomic_write_json
 from core.comms.office_board import OfficeBoard
 from core.db.office_sqlite import OfficeSQLite
 from core.local_calendar import LocalCalendar
-from core.security import load_security_config, normalize_slug
+from core.security import load_security_config, normalize_slug, path_is_sensitive, resolve_within
 
 
 def _find_aimaos_root() -> str:
@@ -356,6 +356,66 @@ def _item_sort_key(item: dict):
     )
 
 
+def _safe_normalize_slug(value) -> str | None:
+    try:
+        return normalize_slug(str(value)) if value else None
+    except ValueError:
+        return None
+
+
+def _review_target(details: dict, cases_by_slug: dict, cases_by_name: dict) -> dict | None:
+    """Resolve task metadata to an opaque matter/file target safe for the browser."""
+    requested_slug = _safe_normalize_slug(details.get("client_slug"))
+    client_name = _clean(details.get("client_name"), 120)
+    case = cases_by_slug.get(requested_slug) if requested_slug else None
+    if case is None and client_name:
+        case = cases_by_name.get(client_name.casefold())
+        if case is None:
+            case = cases_by_slug.get(_safe_normalize_slug(client_name))
+    if case is None:
+        return None
+    slug = str(case.get("client_slug", ""))
+    target = {"client_slug": slug}
+    case_dir = os.path.realpath(str(case.get("path", "")))
+    if not os.path.isdir(case_dir):
+        return target
+
+    path_value = next((
+        details.get(key) for key in (
+            "file_path", "document_path", "output_path", "source_file",
+            "relative_path", "file_name", "document_name", "recent_file",
+        ) if isinstance(details.get(key), str) and details.get(key).strip()
+    ), None)
+    if not path_value:
+        return target
+    candidate = None
+    try:
+        if os.path.isabs(path_value):
+            absolute = os.path.realpath(path_value)
+            if os.path.commonpath([case_dir, absolute]) == case_dir:
+                candidate = absolute
+        else:
+            candidate = resolve_within(case_dir, path_value)
+    except (OSError, ValueError):
+        candidate = None
+    if candidate and not os.path.isfile(candidate) and os.path.basename(path_value) == path_value:
+        matches = []
+        for root, directories, files in os.walk(case_dir):
+            directories[:] = [name for name in directories if not name.startswith(".")]
+            if path_value in files:
+                matches.append(os.path.join(root, path_value))
+            if len(matches) > 1:
+                break
+        candidate = matches[0] if len(matches) == 1 else None
+    if candidate and os.path.isfile(candidate):
+        relative = os.path.relpath(candidate, case_dir)
+        hidden = any(part.startswith(".") for part in relative.replace("\\", "/").split("/"))
+        if not hidden and not path_is_sensitive(candidate, root=case_dir):
+            target["file_path"] = relative.replace(os.sep, "/")
+            target["file_name"] = os.path.basename(candidate)
+    return target
+
+
 def build_workstation_items(
     *, board: OfficeBoard | None = None, calendar: LocalCalendar | None = None,
     database: OfficeSQLite | None = None, today: date | None = None,
@@ -367,15 +427,38 @@ def build_workstation_items(
     today = today or date.today()
     items = []
     linked_event_tasks = set()
+    case_records = database.list_all_cases()
+    cases_by_slug = {
+        str(case.get("client_slug")): case for case in case_records if case.get("client_slug")
+    }
+    cases_by_name = {
+        str(case.get("client_name", "")).casefold(): case
+        for case in case_records if case.get("client_name")
+    }
+    all_board_tasks = board.board.get("active_tasks", []) + board.board.get("completed_tasks", [])
+    board_tasks_by_id = {
+        str(task.get("id") or task.get("task_id")): task for task in all_board_tasks
+    }
 
     for task in board.board.get("active_tasks", []):
         details = _task_details(task)
+        target_details = dict(details)
+        source_task = board_tasks_by_id.get(str(details.get("source_task_id", "")))
+        if source_task:
+            source_details = _task_details(source_task)
+            for key in (
+                "client_name", "client_slug", "file_path", "document_path", "output_path",
+                "source_file", "relative_path", "file_name", "document_name", "recent_file",
+            ):
+                if not target_details.get(key) and source_details.get(key):
+                    target_details[key] = source_details[key]
+        target = _review_target(target_details, cases_by_slug, cases_by_name)
         task_id = str(task.get("id") or task.get("task_id"))
         due = details.get("due_date")
         due_value = _due_date(due)
         requires_human = bool(details.get("requires_human"))
-        client_name = details.get("client_name")
-        client_slug = details.get("client_slug") or (normalize_slug(client_name) if client_name else None)
+        client_name = target_details.get("client_name")
+        client_slug = target.get("client_slug") if target else _safe_normalize_slug(client_name)
         items.append({
             "id": task_id,
             "title": _clean(task.get("title"), 200),
@@ -383,6 +466,7 @@ def build_workstation_items(
             "owner": _clean(details.get("owner") or task.get("assigned_agent"), 80) or "Office",
             "matter": _clean(client_name, 120) or None,
             "client_slug": client_slug,
+            "review_target": target,
             "priority": task.get("priority", "NORMAL"),
             "status": task.get("status", "queued"),
             "due_date": due,
@@ -403,7 +487,8 @@ def build_workstation_items(
         due = event.get("date")
         due_value = _due_date(due)
         event_matter = event.get("client_name")
-        event_slug = event.get("client_slug") or (normalize_slug(event_matter) if event_matter else None)
+        event_target = _review_target(event, cases_by_slug, cases_by_name)
+        event_slug = event_target.get("client_slug") if event_target else _safe_normalize_slug(event_matter)
         items.append({
             "id": str(event.get("id")),
             "title": _clean(event.get("title"), 200),
@@ -411,6 +496,7 @@ def build_workstation_items(
             "owner": "Office",
             "matter": _clean(event_matter, 120) or None,
             "client_slug": event_slug,
+            "review_target": event_target,
             "priority": event.get("priority", "NORMAL"),
             "status": event.get("status", "open"),
             "due_date": due,
@@ -423,7 +509,7 @@ def build_workstation_items(
             "source": "calendar",
         })
 
-    for case in database.list_all_cases():
+    for case in case_records:
         category = str(case.get("category", "")).replace("\\", "/").lower()
         if (str(case.get("status", "open")).lower() == "closed"
                 or "/closed/" in f"/{category.strip('/')}/"):
@@ -458,6 +544,7 @@ def build_workstation_items(
                 "owner": "Matter team",
                 "matter": client_name,
                 "client_slug": case_slug,
+                "review_target": {"client_slug": case_slug},
                 "priority": "HIGH" if missing or urgent else "NORMAL",
                 "status": "blocked" if missing else "open",
                 "due_date": None,

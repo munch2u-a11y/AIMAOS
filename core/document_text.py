@@ -96,11 +96,22 @@ def extract_document_text(path: str) -> ExtractionResult:
         return ExtractionResult("\n".join(rows)[:MAX_EXTRACTED_CHARS], "extracted", "CSV text extracted locally")
     if extension == ".docx":
         import docx
+        from docx.oxml.ns import qn
+
         document = docx.Document(path)
-        parts = [paragraph.text for paragraph in document.paragraphs]
+
+        def paragraph_text(paragraph):
+            # python-docx's paragraph.text omits Word content controls. Read
+            # w:t nodes so fillable intake answers also appear in review.
+            return "".join(node.text or "" for node in paragraph._p.iter(qn("w:t")))
+
+        parts = [paragraph_text(paragraph) for paragraph in document.paragraphs]
         for table in document.tables:
             for row in table.rows:
-                parts.append(" | ".join(cell.text for cell in row.cells))
+                parts.append(" | ".join(
+                    "\n".join(paragraph_text(paragraph) for paragraph in cell.paragraphs)
+                    for cell in row.cells
+                ))
         return ExtractionResult("\n".join(parts)[:MAX_EXTRACTED_CHARS], "extracted", "DOCX text extracted locally")
     if extension == ".pdf":
         from pypdf import PdfReader

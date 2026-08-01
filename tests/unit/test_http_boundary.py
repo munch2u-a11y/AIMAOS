@@ -1,6 +1,7 @@
 import json
 import threading
 import urllib.error
+import urllib.parse
 import urllib.request
 from http.server import ThreadingHTTPServer
 
@@ -61,6 +62,69 @@ def test_http_auth_csrf_and_security_headers(monkeypatch):
             assert exc.code == 403
         else:
             raise AssertionError("Mutation succeeded without a CSRF token")
+    finally:
+        server.shutdown()
+        server.server_close()
+        thread.join(timeout=3)
+
+
+def test_document_review_http_flow(monkeypatch, tmp_path):
+    monkeypatch.delenv("AIMAOS_UI_TOKEN", raising=False)
+    case_dir = tmp_path / "matter"
+    case_dir.mkdir()
+    (case_dir / "draft.txt").write_text("Heading\nDate is August 8\n", encoding="utf-8")
+    case = {"client_slug": "example", "client_name": "Example Client", "path": str(case_dir)}
+    monkeypatch.setattr(
+        aimaos_ui.AIMAOSUIHandler, "_case_record", lambda _self, _slug: (case, str(case_dir))
+    )
+    monkeypatch.setattr(aimaos_ui, "_setup_complete", lambda: True)
+    class FakeAuditBoard:
+        def log_activity(self, _message):
+            return None
+
+    monkeypatch.setattr(aimaos_ui, "OfficeBoard", FakeAuditBoard)
+    monkeypatch.setattr(
+        aimaos_ui, "_queue_document_feedback",
+        lambda **_kwargs: ("task_document_feedback", True),
+    )
+    try:
+        server = ThreadingHTTPServer(("127.0.0.1", 0), aimaos_ui.AIMAOSUIHandler)
+    except PermissionError:
+        pytest.skip("execution sandbox does not permit loopback sockets")
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    base = f"http://127.0.0.1:{server.server_port}"
+    review_url = f"{base}/api/document_review?slug=example&path={urllib.parse.quote('draft.txt')}"
+    try:
+        with _request(f"{base}/api/bootstrap") as response:
+            csrf = json.load(response)["csrf_token"]
+        with _request(review_url) as response:
+            review = json.load(response)
+        assert review["lines"][1] == {"number": 2, "text": "Date is August 8"}
+
+        with _request(
+            f"{base}/api/document_review_note", method="POST", csrf=csrf,
+            body={
+                "slug": "example", "path": "draft.txt", "action": "create",
+                "line_number": 2, "kind": "correction",
+                "comment": "Confirm against the signed notice.",
+            },
+        ) as response:
+            saved = json.load(response)
+        assert saved["status"] == "success"
+        assert (case_dir / "AIMAOS_REVIEW_NOTES.md").is_file()
+
+        with _request(review_url) as response:
+            refreshed = json.load(response)
+        assert refreshed["open_note_count"] == 1
+        assert refreshed["notes"][0]["line_number"] == 2
+
+        with _request(
+            f"{base}/api/document_review_submit", method="POST", csrf=csrf,
+            body={"slug": "example", "path": "draft.txt"},
+        ) as response:
+            queued = json.load(response)
+        assert queued["task_id"] == "task_document_feedback"
     finally:
         server.shutdown()
         server.server_close()

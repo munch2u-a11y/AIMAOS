@@ -11,6 +11,7 @@ from __future__ import annotations
 import argparse
 import base64
 import binascii
+import hashlib
 import importlib.util
 import ipaddress
 import json
@@ -47,6 +48,7 @@ sys.path.insert(0, AIMAOS_ROOT)
 
 from core.comms.office_board import OfficeBoard
 from core.db.office_sqlite import OfficeSQLite
+from core.document_review import DocumentReviewStore
 from core.document_text import extract_document_text, validate_upload_content
 from core.jobs import get_job_manager
 from core.workflow_review import (
@@ -79,6 +81,7 @@ CSRF_TOKEN = generate_csrf_token()
 STARTED_AT = datetime.now().isoformat()
 logger = logging.getLogger("aimaos.ui")
 NOTES_LOCK = threading.Lock()
+REVIEWABLE_EXTENSIONS = {".txt", ".md", ".csv", ".json", ".yaml", ".yml", ".rtf", ".docx", ".pdf"}
 
 
 def _is_loopback(host: str) -> bool:
@@ -319,9 +322,115 @@ def _write_case_summary(case_dir: str, client_name: str, review: dict, recent_fi
 
 def _resolve_public_case_file(case_dir: str, rel_path: str, *, must_exist: bool = True) -> str:
     candidate = resolve_within(case_dir, rel_path, must_exist=must_exist)
-    if candidate != os.path.realpath(case_dir) and path_is_sensitive(candidate, root=case_dir):
-        raise SecurityValidationError("Private matter runtime files are not available through the dashboard.")
+    if candidate != os.path.realpath(case_dir):
+        relative_parts = Path(os.path.relpath(candidate, case_dir)).parts
+        if (path_is_sensitive(candidate, root=case_dir)
+                or any(part.startswith(".") for part in relative_parts)):
+            raise SecurityValidationError("Private matter runtime files are not available through the dashboard.")
     return candidate
+
+
+def _extract_review_lines(file_path: str) -> tuple[str, str, list[str]]:
+    extension = os.path.splitext(file_path)[1].lower()
+    if extension not in REVIEWABLE_EXTENSIONS:
+        return "manual_review_required", "In-app review is not available for this file type.", []
+    try:
+        extraction = extract_document_text(file_path)
+        return extraction.status, extraction.detail, extraction.text.splitlines()[:5_000]
+    except Exception as exc:  # noqa: BLE001 - untrusted parser boundary
+        logger.warning("Document review extraction failed for %s: %s", os.path.basename(file_path), exc)
+        return (
+            "manual_review_required",
+            "The document could not be extracted safely; open it in the system application.",
+            [],
+        )
+
+
+def _document_review_payload(case_dir: str, rel_path: str) -> dict:
+    """Return bounded extracted lines plus annotations without exposing local paths."""
+    file_path = _resolve_public_case_file(case_dir, rel_path, must_exist=True)
+    if not os.path.isfile(file_path):
+        raise FileNotFoundError("Document not found.")
+    normalized_rel = os.path.relpath(file_path, case_dir).replace(os.sep, "/")
+    extraction_status, extraction_detail, raw_lines = _extract_review_lines(file_path)
+    store = DocumentReviewStore(case_dir)
+    notes = store.list_notes(normalized_rel)
+    line_hashes = {
+        index: hashlib.sha256(text.encode("utf-8", errors="replace")).hexdigest()[:20]
+        for index, text in enumerate(raw_lines, start=1)
+    }
+    public_notes = []
+    for note in notes:
+        public_notes.append({
+            key: value for key, value in {
+                "id": note.get("id"),
+                "kind": note.get("kind"),
+                "line_number": note.get("line_number"),
+                "line_text": note.get("line_text"),
+                "comment": note.get("comment"),
+                "status": note.get("status"),
+                "created_at": note.get("created_at"),
+                "updated_at": note.get("updated_at"),
+                "stale": line_hashes.get(note.get("line_number")) != note.get("line_hash"),
+            }.items() if value is not None
+        })
+    return _browser_safe_value({
+        "file": {
+            "name": os.path.basename(file_path),
+            "path": normalized_rel,
+            "size": os.path.getsize(file_path),
+            "modified_at": datetime.fromtimestamp(os.path.getmtime(file_path)).isoformat(),
+        },
+        "extraction": {
+            "status": extraction_status,
+            "detail": extraction_detail,
+            "line_count": len(raw_lines),
+            "truncated": len(raw_lines) >= 5_000,
+        },
+        "lines": [{"number": index, "text": text} for index, text in enumerate(raw_lines, start=1)],
+        "notes": public_notes,
+        "open_note_count": sum(note.get("status") != "resolved" for note in notes),
+    })
+
+
+def _queue_document_feedback(
+    *, case: dict, slug: str, case_dir: str, normalized_rel: str,
+    board: OfficeBoard | None = None,
+) -> tuple[str, bool]:
+    notes = DocumentReviewStore(case_dir).list_notes(normalized_rel, include_resolved=False)
+    if not notes:
+        raise SecurityValidationError("Add at least one open review note before queueing corrections.")
+    file_name = os.path.basename(normalized_rel)
+    review_key = "document_feedback:" + hashlib.sha256(
+        f"{slug}:{normalized_rel}".encode("utf-8", errors="replace")
+    ).hexdigest()[:20]
+    board = board or OfficeBoard()
+    existing = next((
+        task for task in board.board.get("active_tasks", [])
+        if isinstance(task.get("details"), dict)
+        and task["details"].get("review_key") == review_key
+        and task.get("status") in {"queued", "in_progress", "blocked"}
+    ), None)
+    if existing:
+        return str(existing.get("id")), False
+    task_id = board.post_task(
+        f"Apply document feedback: {file_name}",
+        "User",
+        "Alix",
+        "HIGH",
+        details={
+            "client_name": case.get("client_name"),
+            "client_slug": slug,
+            "file_path": normalized_rel,
+            "work_type": "document_feedback",
+            "review_key": review_key,
+            "next_action": (
+                "Read AIMAOS_REVIEW_NOTES.md, apply every open note to a new reviewed draft, "
+                "and preserve the source document."
+            ),
+        },
+    )
+    return task_id, True
 
 
 class AIMAOSUIHandler(SimpleHTTPRequestHandler):
@@ -548,6 +657,15 @@ class AIMAOSUIHandler(SimpleHTTPRequestHandler):
                     raise FileNotFoundError("File not found.")
                 return self._send_file(file_path)
 
+            if path == "/api/document_review":
+                slug = query.get("slug", [""])[0]
+                rel_path = query.get("path", [""])[0]
+                _case, case_dir = self._case_record(slug)
+                return self._send_json({
+                    "status": "success",
+                    **_document_review_payload(case_dir, rel_path),
+                })
+
             if path == "/api/reports":
                 report_roots = [
                     os.path.join(AIMAOS_ROOT, "Zoe-AI", "workspace", "diagnostics"),
@@ -585,6 +703,7 @@ class AIMAOSUIHandler(SimpleHTTPRequestHandler):
             work_routes = {
                 "/api/chat", "/api/upload", "/api/generate_doc",
                 "/api/quick_action", "/api/work_item",
+                "/api/document_review_note", "/api/document_review_submit",
             }
             if path in work_routes and not _setup_complete():
                 return self._error(
@@ -779,6 +898,78 @@ class AIMAOSUIHandler(SimpleHTTPRequestHandler):
                 else:
                     raise SecurityValidationError("Unknown work item action.")
                 return self._send_json({"status": "success", "message": message})
+
+            if path == "/api/document_review_note":
+                slug = validate_slug(str(data.get("slug", "")), label="matter identifier")
+                rel_path = str(data.get("path", ""))
+                _case, case_dir = self._case_record(slug)
+                file_path = _resolve_public_case_file(case_dir, rel_path, must_exist=True)
+                if not os.path.isfile(file_path):
+                    raise FileNotFoundError("Document not found.")
+                normalized_rel = os.path.relpath(file_path, case_dir).replace(os.sep, "/")
+                action = str(data.get("action", "create")).lower()
+                store = DocumentReviewStore(case_dir)
+                if action == "create":
+                    try:
+                        line_number = int(data.get("line_number"))
+                    except (TypeError, ValueError) as exc:
+                        raise SecurityValidationError("Choose a document line before adding a note.") from exc
+                    _status, _detail, lines = _extract_review_lines(file_path)
+                    if not 1 <= line_number <= len(lines):
+                        raise SecurityValidationError("The selected document line is unavailable.")
+                    comment = str(data.get("comment", "")).strip()
+                    if not comment or len(comment) > 4_000:
+                        raise SecurityValidationError("Review comments must be between 1 and 4,000 characters.")
+                    try:
+                        note = store.add_note(
+                            rel_path=normalized_rel,
+                            line_number=line_number,
+                            line_text=lines[line_number - 1],
+                            comment=comment,
+                            kind=str(data.get("kind", "correction")),
+                        )
+                    except ValueError as exc:
+                        raise SecurityValidationError(str(exc)) from exc
+                    message = "Review note saved and made available to the matter team."
+                elif action in {"resolve", "reopen"}:
+                    note_id = str(data.get("note_id", "")).strip()
+                    if not re.fullmatch(r"note_[a-f0-9]{16}", note_id):
+                        raise SecurityValidationError("Invalid review note identifier.")
+                    try:
+                        note = store.set_note_status(
+                            rel_path=normalized_rel,
+                            note_id=note_id,
+                            status="resolved" if action == "resolve" else "open",
+                        )
+                    except ValueError as exc:
+                        raise SecurityValidationError(str(exc)) from exc
+                    message = "Review note updated."
+                else:
+                    raise SecurityValidationError("Unknown document review action.")
+                OfficeBoard().log_activity(
+                    f"[Document Review] Staff updated review notes for '{os.path.basename(file_path)}' in '{slug}'."
+                )
+                return self._send_json({"status": "success", "message": message, "note": note})
+
+            if path == "/api/document_review_submit":
+                slug = validate_slug(str(data.get("slug", "")), label="matter identifier")
+                rel_path = str(data.get("path", ""))
+                case, case_dir = self._case_record(slug)
+                file_path = _resolve_public_case_file(case_dir, rel_path, must_exist=True)
+                if not os.path.isfile(file_path):
+                    raise FileNotFoundError("Document not found.")
+                normalized_rel = os.path.relpath(file_path, case_dir).replace(os.sep, "/")
+                task_id, created = _queue_document_feedback(
+                    case=case, slug=slug, case_dir=case_dir, normalized_rel=normalized_rel,
+                )
+                return self._send_json({
+                    "status": "success",
+                    "task_id": task_id,
+                    "message": (
+                        "Document corrections were queued for Alix."
+                        if created else "Document corrections are already in the office queue."
+                    ),
+                })
 
             if path == "/api/open_file":
                 if not bool(self.config.get("ui", {}).get("allow_native_open", True)):

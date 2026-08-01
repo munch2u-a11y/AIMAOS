@@ -18,6 +18,7 @@ Small firms and solo offices often struggle with administrative overhead: organi
 5. **Automated Inter-Agent Task Delegation**: When an agent identifies a required action during document review—such as needing in-depth research, template rendering, or drive file ingestion—it posts a structured task to the central office board, automatically routing the work to the right specialist agent.
 6. **Hardware-Enforced Outbound Email Safety**: Operates in strict `READ_ONLY` mode by default (or `WHITELIST_ONLY`), ensuring agents can never accidentally email clients or external parties.
 7. **Voice Scribe Dictation**: Dictate quick audio notes directly into the web interface; the system transcribes the recording and attaches the takeaways straight to the client's case file.
+8. **In-App Document Review**: Open supported matter documents in the workstation, comment on individual extracted lines, preserve the original evidence, and queue the resulting corrections for an agent as a new reviewed draft.
 
 ---
 

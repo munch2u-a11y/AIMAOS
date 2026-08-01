@@ -6,6 +6,7 @@ from docx import Document
 from docx.oxml.ns import qn
 
 from core.security import tool_execution_policy
+from core.document_text import extract_document_text
 
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -64,6 +65,9 @@ def test_fillable_form_round_trip_is_idempotent_and_keeps_unrelated_lines(tmp_pa
     text = controls[0].find(f'.//{qn("w:sdtContent")}/{qn("w:r")}/{qn("w:t")}')
     text.text = "Synthetic Client"
     filled.save(path)
+
+    extraction = extract_document_text(str(path))
+    assert "Synthetic Client" in extraction.text
 
     monkeypatch.setattr(reader_module, "require_allowed_path", lambda value: str(Path(value).resolve()))
     result = reader_module.execute(str(path))

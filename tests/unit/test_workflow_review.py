@@ -194,6 +194,43 @@ def test_workstation_merges_case_work_and_supports_human_actions(tmp_path):
     assert calendar.list_events() == []
 
 
+def test_workstation_resolves_safe_task_file_targets_without_exposing_absolute_paths(tmp_path):
+    case_dir = tmp_path / "matter"
+    drafts = case_dir / "drafts"
+    drafts.mkdir(parents=True)
+    document = drafts / "response.docx"
+    document.write_bytes(b"synthetic")
+    (case_dir / ".client_file_state.json").write_text(json.dumps({
+        "client_name": "Example Client", "next_steps": [], "required_documents": {},
+    }), encoding="utf-8")
+    source = {
+        "id": "task_source", "title": "Create response", "status": "completed",
+        "details": {"client_name": "Example Client", "output_path": str(document)},
+    }
+    review = {
+        "id": "task_review", "title": "Review response", "assigned_agent": "Attorney",
+        "priority": "HIGH", "status": "waiting_on_human",
+        "details": {
+            "client_name": "Example Client", "source_task_id": "task_source",
+            "requires_human": True, "work_type": "completion_review",
+        },
+    }
+    items = build_workstation_items(
+        board=FakeBoard(active=[review], completed=[source]),
+        calendar=LocalCalendar(str(tmp_path / "calendar.json")),
+        database=FakeDatabase([{
+            "client_slug": "example", "client_name": "Example Client",
+            "path": str(case_dir), "status": "open", "category": "active",
+        }]),
+    )
+
+    item = next(value for value in items if value["id"] == "task_review")
+    assert item["review_target"] == {
+        "client_slug": "example", "file_path": "drafts/response.docx", "file_name": "response.docx",
+    }
+    assert str(case_dir) not in repr(item)
+
+
 def test_daily_review_runs_only_once_per_day_without_force(tmp_path):
     kwargs = {
         "now": datetime(2026, 7, 31, 9, 0),

@@ -337,6 +337,61 @@
     </main>
   </div>
 
+  <dialog id="document-review-dialog" class="document-review-dialog" aria-labelledby="document-review-title">
+    <div class="document-review-shell">
+      <header class="document-review-header">
+        <div>
+          <p class="eyebrow">Document review</p>
+          <h2 id="document-review-title">Review document</h2>
+          <p id="document-review-meta">Select a line to add feedback.</p>
+        </div>
+        <div class="file-actions">
+          <button id="document-review-download" class="secondary-button" type="button">Download</button>
+          <button id="document-review-native" class="secondary-button" type="button">Open in Word / LibreOffice</button>
+          <button id="document-review-close" class="icon-button" type="button" aria-label="Close document review">×</button>
+        </div>
+      </header>
+      <p id="document-review-status" class="review-notice" role="status"></p>
+      <div class="document-review-layout">
+        <section class="document-reader" aria-labelledby="document-lines-title">
+          <div class="section-row">
+            <h3 id="document-lines-title">Document text</h3>
+            <small>Click any line to comment</small>
+          </div>
+          <div id="document-review-lines" class="document-lines" aria-live="polite"></div>
+        </section>
+        <aside class="document-comments" aria-labelledby="document-comments-title">
+          <div>
+            <p class="eyebrow">Feedback</p>
+            <h3 id="document-comments-title">Notes and corrections</h3>
+          </div>
+          <form id="document-review-note-form" class="review-note-form">
+            <p id="document-review-selection" class="selected-line">Choose a line in the document.</p>
+            <label>Note type
+              <select id="document-review-kind">
+                <option value="correction">Correction</option>
+                <option value="question">Question</option>
+                <option value="approval">Approval</option>
+                <option value="general">General note</option>
+              </select>
+            </label>
+            <label>Your note
+              <textarea id="document-review-comment" rows="5" maxlength="4000" placeholder="Explain what should change or what the agent should verify." required></textarea>
+            </label>
+            <button class="primary-button" type="submit">Save note</button>
+          </form>
+          <div class="section-row review-notes-heading">
+            <h3>Saved notes</h3>
+            <span id="document-review-note-count" class="draft-pill">0 open</span>
+          </div>
+          <div id="document-review-notes" class="review-notes-list"></div>
+          <button id="document-review-submit" class="primary-button full-width" type="button">Send open notes to agent</button>
+          <p class="form-help">The original file is preserved. The agent is instructed to create a new reviewed draft.</p>
+        </aside>
+      </div>
+    </div>
+  </dialog>
+
   <dialog id="auth-dialog" aria-labelledby="auth-title">
     <form id="auth-form" method="dialog" class="dialog-card">
       <h2 id="auth-title">Enter dashboard access token</h2>

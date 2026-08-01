@@ -13,3 +13,4 @@
 - Added a unified Agenda with prioritized blockers, case-advancement steps, deadlines, staff follow-ups, and complete/snooze controls.
 - Added Marley's deterministic daily advancement review with recursive task dependencies, stale-work promotion, false-completion review, and idempotent local reminders.
 - Added protected, fillable Word intake questionnaires with deterministic content-control extraction, approved-path enforcement, and explicit review of client-provided answers.
+- Added in-app document text review, line-level staff annotations, task-to-file navigation, and an explicit queue for applying corrections to a new draft.
