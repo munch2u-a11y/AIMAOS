@@ -1,211 +1,231 @@
-# AIMAOS Architecture & Multi-Agent OS Synergy Technical Audit
+# AIMAOS System Architecture Technical Audit
 
-## Executive Summary
+**Snapshot:** public-beta source tree, 2026-07-31
+**Purpose:** describe implemented behavior, source/runtime boundaries, trust assumptions, and known limitations.
+**Canonical overview:** [`README.md`](../README.md)
 
-**AIMAOS** (*AI Multi-Agent Office Suite Operating System*) is an autonomous, 100% offline, model-agnostic multi-agent desktop operating suite. It is engineered to automate client case management, document production, folder organization, in-depth research, and administrative task coordination for small offices operating on budget local hardware.
+## 1. Executive summary
 
-Rather than relying on massive static system prompts or single-agent execution loops that stuff thousands of tokens into a single local prompt window, AIMAOS orchestrates specialized mini-agents running isolated single-thought turn loops, collaborating through an offline file-queue IPC bus, a central relational SQLite database kernel, and an Office Board bulletin system.
+AIMAOS is a single-operator, local-first office workstation. It combines:
 
----
+- a browser UI and local HTTP API (`aimaos_ui.py`, `ui/`);
+- a deterministic task, job, matter, and review layer (`core/`);
+- a sequential office daemon (`run_office.py`, Marley's `office_daemon.py`);
+- role-specific agents materialized from `starter_packs/`;
+- local model calls through Ollama or an OpenAI-compatible llama.cpp endpoint;
+- matter-local files and per-agent memory stores;
+- explicit human review for documents, communications, and uncertain completion.
 
-## 1. Dedicated Per-Folder Case Manager Architecture (`CaseAgent`)
+The system is not a cloud office suite, a multi-user authorization system, a full word processor, or a source of professional advice. Its core value is coordinating locally generated, reviewable work around deterministic state while limiting the authority given to small language models.
 
-Client file management in AIMAOS is decoupled from global office operations. When an external drive or intake directory is ingested, the system provisions a dedicated **CaseManager (`CaseAgent`)** for each individual client folder:
+## 2. Source tree versus live office
 
-```
-Alix-AI/workspace/output/
-├── name_change/
-│   ├── sample_client/
-│   │   ├── CLIENT_FILE.md              <-- Live Human-Readable Case Summary
-│   │   ├── .client_file_state.json     <-- Structured JSON State
-│   │   ├── .case_agent/mrag_data/      <-- Private Isolated Case Memory
-│   │   ├── Petition - Name Change.docx <-- Client Document / Filing
-│   │   └── Birth_Certificate.jpg       <-- Ingested Evidence
-```
-
-*(Everything under `workspace/` is generated at runtime and excluded from git.)*
-
-### Key Technical Operations of `CaseAgent`:
-1. **Living Markdown Synchronization (`CLIENT_FILE.md`)**: On each review turn, `CaseAgent` evaluates directory changes and updates `CLIENT_FILE.md` with:
-   - **Status Summary**: High-level synthesis of case progress, recent filings, and active discovery state.
-   - **Timelines & Project Deadlines**: Key milestone dates, hearing dates, and deadlines extracted into structured date strings.
-   - **To-Do & Required Document Checklists**: Explicit `[ ] Pending` vs `[x] Received` itemizations.
-   - **Activity Log**: Chronological audit trail of all file ingestions and reviews.
-2. **Context Isolation**: Memory is stored inside `.case_agent/mrag_data/` within that specific client's folder. Facts from Client A never contaminate Client B's prompt window or pollute global roster context windows.
-3. **Cross-Case Category Skill Sharing**: `CaseAgent` instances operating in the same practice area (e.g. `name_change`, `estate_planning`, `probate`, `guardianship`, `family`) inherit category procedural knowledge via `comms/category_skills/<category_slug>.json`.
-
----
-
-## 2. Helix Skill Formation & Background Reflection Architecture
-
-Mini-agents in AIMAOS do not rely on hardcoded, bloated system prompts. Instead, they feature an adaptive **Helix-style mRAG memory engine** that evolves new skills independently based on experience and user preferences.
-
-```
-┌─────────────────────────────────────────────────────────────────────────┐
-│                      HELIX AGENT SKILL FORMATION                        │
-├─────────────────────────────────────────────────────────────────────────┤
-│ 1. Turn Execution Log  : Records raw task outcome & user feedback       │
-│ 2. Memory Store        : Saved to workspace/.memory/mrag_data/memory.json│
-│ 3. Background Reflection: Scheduled LLM pass analyzes patterns         │
-│ 4. Skill Consolidation : Synthesizes proven workflow into skills.json   │
-│ 5. Pre-Generative Inject: Dynamic prompt injection of top skills       │
-└─────────────────────────────────────────────────────────────────────────┘
-```
-
-### How New Skills Form:
-1. **Raw Experience Recording**: Every turn, tool invocation, error handling event, or user feedback item is written to `workspace/.memory/mrag_data/memory.json`.
-2. **Background Reflection Loop**: Scheduled every N cycles by Marley (the Office Manager), the agent executes an LLM reflection pass over recent logs.
-3. **Skill Consolidation**: Proven patterns, procedural shortcuts, and user preferences are promoted into permanent **Skill beliefs** (`skills.json`).
-4. **Dynamic Pre-Generative Prompt Injection**: On subsequent turns, the pre-generative injector (`core/mrag/core/pre_generative_injection.py`) dynamically injects the highest-weighted evolved skills into the agent's ultra-minimal prompt window (~100–400 tokens), seamlessly tailoring agent performance to user preferences.
-
----
-
-## 3. Dual Memory Storage Architecture: Relational SQL Core vs. Vector Store Memory
-
-AIMAOS combines structured relational database integrity with semantic vector retrieval:
-
-```
-┌─────────────────────────────────────────────────────────────────────────┐
-│                    AIMAOS DUAL MEMORY STORAGE HUB                       │
-├─────────────────────────────────────────────────────────────────────────┤
-│                                                                         │
-│  1. STRUCTURED RELATIONAL CORE (SQLite — comms/office_database.sqlite)   │
-│     • Manages cases, active task queues, and document template catalogs │
-│     • Guarantees atomic row locking, zero data corruption, & fast SQL   │
-│     • Synchronizes state to CLIENT_FILE.md for staff inspection         │
-│                                                                         │
-│  2. SEMANTIC MEMORY ENGINE (mRAG Vector Stores)                         │
-│     • Handles semantic search & context injection over unstructured text│
-│     • Flexible Vector Store Backends (core/mrag/core/vector_store.py):  │
-│       - DummyVectorStore: SHA-256 pseudo-vector hashing (0-dep default) │
-│       - ChromaVectorStore: Local ChromaDB with real semantic embeddings │
-│       - PineconeVectorStore: Cloud vector index for enterprise scale    │
-└─────────────────────────────────────────────────────────────────────────┘
-```
-
----
-
-## 4. Role-Agnostic Starter Roster Matrix
-
-| Functional Job Title | Starter Name Preset | Core Role & Responsibilities |
-| :--- | :--- | :--- |
-| **Document Producer & Keeper** | `Alix` (Default) | Jinja2 Word template rendering, TOC OpenXML injection, PDF compilation, template cataloger (`catalog_templates.py`). |
-| **Digital Librarian & Archiver** | `Kai` (Default) | External drive scanner (`drive_ingestion.py`), client record deduplication, task execution trace archival. |
-| **Office Manager & Scheduler** | `Marley` (Default) | Autonomous office daemon pulse loop (`office_daemon.py`), priority turn scheduling (`CRITICAL`, `HIGH`, `NORMAL`, `BACKGROUND`), load balancing. |
-| **Domain & Subject Researcher** | `Quinn` (Default) | In-depth subject research, policy & regulatory analysis, procedural rule verification, briefing report synthesis. |
-| **DevOps Engineer & Synthesizer** | `Zoe` (Default) | Task trace analysis, Hermes operational improvement report synthesis, performance bottleneck detection. |
-| **Security Officer & Comms Gateway** | `Finn` (Default) | Security triage, sender permission checks, hardware-enforced email security policies (`READ_ONLY`, `WHITELIST_ONLY`), Voice Scribe audio dictation gateway. |
-| **Agent Maker & Cloner** | `Rae` (Default) | Workspace cloner (`clone_agent.py`), fully integrating new clones into main config, IPC bus queues, and Office Board. |
-| **Dedicated Case Manager** | `CaseAgent` (Dynamic) | Per-client mini-agent. Generates `CLIENT_FILE.md` summaries, required-document checklists, project deadlines, and inherits practice area skills. |
-
----
-
-## 5. Multi-Agent Office Suite Subsystems Breakdown
+The public repository contains code, blank/sample templates, synthetic examples, and starter-pack definitions. Setup creates live agent workspaces and runtime state.
 
 ```mermaid
-graph TD
-    UserDrive["External Drive / Intake Files / Voice Dictation"] --> SecGateway["Security Officer & Comms Gateway"]
-    SecGateway -->|1. Triage & Log Task| Board["Central Office Board & SQLite Kernel (comms/office_database.sqlite)"]
-    
-    Board <--> Manager["Office Manager & Priority Scheduler"]
-    
-    Manager -->|High Priority Turn| DocProducer["Document Producer (Template Cataloger & PDF Renderer)"]
-    Manager -->|High Priority Turn| Researcher["Legal Researcher (Statutory Analysis & Briefing)"]
-    Manager -->|Normal Priority Turn| Librarian["Digital Librarian (Drive Ingestion Scanner & Archiver)"]
-    
-    Librarian -->|Spawn & Assign| CaseManager["CaseManager (Per-Client Folder Reviewer)"]
-    
-    CaseManager -->|Discovers Missing Form| Board
-    CaseManager -->|Discovers Statutory Query| Board
-    CaseManager <--> CatSkills["Category Skill Repository (comms/category_skills/)"]
-    
-    DocProducer -->|Request Dispatch| SecGateway
-    SecGateway -->|Hardware Policy Verification| Outbound["Client Package Log (READ_ONLY / WHITELIST)"]
+flowchart LR
+    Repo[Tracked repository] --> Kernel[core and UI]
+    Repo --> Packs[starter_packs]
+    Packs -->|setup.py| Agents[Generated root Agent-AI workspaces]
+    Agents --> Runtime[workspace, memory, output]
+    Kernel --> Runtime
+    Kernel --> Comms[comms board, IPC, SQLite]
+    Runtime --> Matters[Matter files and review notes]
 ```
 
----
+| Boundary | Tracked source | Generated/private runtime |
+| --- | --- | --- |
+| Agent code | `starter_packs/document_heavy/<Name>-AI/` | root `<Name>-AI/` |
+| Templates | blank/source templates under `starter_packs/` | root agent template registry and populated outputs |
+| Matter state | schemas and synthetic examples | matter directories, `CLIENT_FILE.md`, sidecar JSON, review notes |
+| Office state | database/board code | `comms/`, SQLite database, jobs, IPC messages, task logs |
+| Learning | mRAG implementation and seed beliefs | each agent's `workspace/.memory/` |
 
-## 6. Delegation Architecture: Every Tool Is a Subagent
+Public-release review must use `git ls-files` and reachable history, not merely a filesystem listing: ignored runtime data can still exist in an older Git commit.
 
-The single most distinctive property of an AIMAOS turn is that **the main agent
-never sees a tool schema or raw tool output**. The tool-calling pipeline is
-decomposed so each stage spends a full context window on exactly one job
-(`core/delegation.py`, `core/office_agent.py`):
+## 3. Workstation and API
 
+### 3.1 User-facing areas
+
+`ui/aimaos_ui.html` and `ui/static/app.js` implement Home, Agenda, Matters, Create, Assistant, and Settings views plus document-review and authentication dialogs.
+
+- **Home:** daemon state, active work, matter count, attention count, blockers, and quick actions.
+- **Agenda:** prioritized workstation items built by `core/workflow_review.py`.
+- **Matters:** matter list/detail, living summary, safe file listing, upload, download, native open (when allowed), and browser review.
+- **Create:** template catalog and background draft generation.
+- **Assistant:** general or matter-scoped jobs and typed matter notes.
+- **Settings:** security/privacy state and developer-gated specialist creation.
+- **Daemon control:** cooperative pause/resume after the current turn.
+
+Browser responses use public projection helpers rather than returning raw board/database records. DOM rendering uses text nodes/`textContent` instead of HTML injection.
+
+### 3.2 HTTP boundary
+
+`aimaos_ui.AIMAOSUIHandler` provides the API. Controls include:
+
+- loopback default and explicit LAN/TLS policy checks;
+- optional bearer/header token authentication;
+- CSRF token and origin validation for mutations;
+- security headers and a restrictive Content Security Policy;
+- JSON/body/upload size limits;
+- configured upload extension allowlist;
+- approved-root, matter-boundary, traversal, and sensitive-path validation;
+- redacted errors instead of raw tracebacks;
+- developer feature gates.
+
+The server is a single-operator boundary. A token is not a substitute for user accounts, authorization roles, per-matter permissions, or tenant isolation.
+
+### 3.3 Background jobs
+
+`core/jobs.py` uses a one-worker `ThreadPoolExecutor` for dashboard model work. Job metadata is persisted in SQLite. On restart, unfinished records are marked interrupted instead of falsely completed. This queue is serialized internally, but it is separate from the office daemon; deployment capacity planning must consider both processes.
+
+## 4. Office state and scheduling
+
+### 4.1 SQLite and compatibility state
+
+`core/db/office_sqlite.py` stores structured cases, tasks, templates, and dashboard jobs in `comms/office_database.sqlite`. The file-based `OfficeBoard` remains the shared task/activity compatibility layer, protected by file locking and atomic replacement. The IPC bus exchanges JSON envelopes under `comms/<Agent>/inbox/`.
+
+SQLite provides transactional local storage; the project does not claim zero corruption risk. Backups must be taken consistently, and schema downgrade is not supported without a tested migration.
+
+### 4.2 Daemon pulse
+
+`starter_packs/document_heavy/Marley-AI/core/office_daemon.py`:
+
+1. requeues expired leases and retryable failures;
+2. processes agent IPC inboxes;
+3. runs the deterministic advancement review on its configured cadence;
+4. chooses the next task using priority and aging;
+5. executes one assigned agent turn;
+6. rotates reflection work;
+7. backs off when idle.
+
+Only one daemon-managed agent turn runs at a time. A pause request is checked at turn boundaries, published through `comms/daemon_status.json`, and held in `comms/daemon_control.json` until resume.
+
+### 4.3 Daily advancement review
+
+`core/workflow_review.py` converts raw task/case/calendar state into a maximum of 200 sorted workstation items. Its deterministic rules cover:
+
+- direct-communication requests held for attorney/staff action;
+- task prerequisites and blockers;
+- overdue and stale work promotion;
+- completion records that still contain failure/unconfirmed language;
+- matter next steps and outstanding required documents;
+- safe `review_target` metadata for one-click navigation;
+- idempotent reminders and linked calendar entries.
+
+This is workflow assistance, not legal-deadline computation.
+
+## 5. Agent kernel and delegation
+
+### 5.1 OfficeAgent
+
+`core/office_agent.py` supplies the shared role-agent kernel. A generated role agent receives:
+
+- its name, role, and effective model from `aimaos_config.yaml`;
+- an Office Board and IPC client;
+- a private matter-independent mRAG belief store;
+- a capability-domain registry loaded from its live `capabilities.yaml`;
+- a local LLM client;
+- experience recording and periodic reflection;
+- task claim, result, failure, and status transitions.
+
+Common SSN, payment-number, and email patterns are redacted before experience text is stored. Matter content is not promoted into shared skills by default. Heuristic redaction does not make arbitrary prose anonymous.
+
+### 5.2 Layered delegation
+
+When delegation is enabled, the main role agent sees capability domains rather than every raw tool schema. `core/delegation.py` creates:
+
+1. a **domain orchestrator** that focuses on one capability and selects tools;
+2. a **tool subagent** that sees one tool schema, validated directive, and relevant tool-use beliefs;
+3. a **return summarizer** that condenses the domain transcript for the main agent.
+
+```mermaid
+flowchart LR
+    Task --> Main[Main role agent]
+    Main --> Domain[Domain orchestrator]
+    Domain --> Tool[Tool subagent]
+    Tool --> Policy[Deterministic tool policy]
+    Policy --> Operation[Local or explicitly enabled operation]
+    Operation --> Record[Digest/metadata log by default]
+    Operation --> Summary[Condensed result]
+    Summary --> Main
 ```
-Main agent ──(directive)──► Orchestrator subagent ──(directive)──► Tool subagent
-    ▲   capability beliefs      domain-scoped mRAG       schema + tool-use
-    │   only — no schemas,      re-injection (full       beliefs, no persona;
-    │   no raw output           budget for ONE domain)   executes + condenses
-    │                                                            │
-    └──(first-person report)◄── Return summarizer ◄──────────────┘
-                                   verbatim output → workspace/.memory/tool_logs/
+
+The design narrows context but increases latency and model-call count. It does not guarantee correct tool selection or correct output.
+
+### 5.3 Models
+
+`core/llm.py` implements Ollama and an OpenAI-compatible llama.cpp server. The current checked-in configuration assigns `qwen3.5:4b` to most roles, `qwen3.5:2b` to Finn, and an optional `gemma3:4b` prose model to Quinn. Tool-calling support must be verified for the effective model/backend. Models are not bundled.
+
+## 6. Matter records and document review
+
+### 6.1 Matter records
+
+Kai's tracked source under `starter_packs/document_heavy/Kai-AI/` creates and maintains matter directories, structured `.client_file_state.json`, human-readable `CLIENT_FILE.md`, next steps, required documents, and activity entries. `core/case_agent.py` supplies a matter-local reasoning/memory layer.
+
+Matter isolation is implemented through directory boundaries and path checks. It is not a formal mandatory-access-control system; the OS account and configured storage roots remain part of the trust boundary.
+
+### 6.2 Document production
+
+Alix's source under `starter_packs/document_heavy/Alix-AI/` provides DOCX/Jinja2 rendering, fillable intake fields, document reading/writing, PDF assembly/conversion helpers, and template metadata. Some tools or network-capable integrations are disabled by policy in the public-beta defaults.
+
+Bundled court-form templates require provenance and revision review. Successful rendering means the file was produced; it does not establish legal sufficiency or current form status.
+
+### 6.3 In-app review
+
+`core/document_text.py` extracts review text. `core/document_review.py` stores bounded, matter-local annotations using atomic writes and a lock:
+
+- `.aimaos_review_notes.json` is the structured source;
+- `AIMAOS_REVIEW_NOTES.md` is an agent-readable rendering;
+- notes preserve line number, quoted line text, hash, kind, status, and timestamps;
+- correction submission deduplicates active feedback tasks;
+- source files are not silently overwritten.
+
+DOCX/PDF extraction is not a layout-accurate editor and cannot preserve every native-office feature.
+
+## 7. Security and privacy model
+
+The default configuration disables network tools, external mutations, shell tools, raw tool logs, raw-memory injection, matter-content learning, document-triggered delegation, direct communications, and developer mode. Email is `READ_ONLY`.
+
+Optional integrations exist in source. Enabling one changes the data-flow boundary and requires separate review. “Local-first” therefore describes the default deployment, while “offline” is conditional on configuration and operator behavior.
+
+Private runtime data is excluded by `.gitignore`, but release safety additionally requires:
+
+- current-tree secret/PII scans;
+- embedded DOCX/PDF metadata/content review;
+- reachable-history scans for deleted runtime data;
+- commit-author email review;
+- explicit staging and diff inspection;
+- encrypted storage/backups and restricted OS permissions.
+
+## 8. Android shell
+
+`android/` is an experimental Kotlin/AppCompat WebView wrapper using XML layouts, ViewBinding, encrypted preferences, optional biometric gating, and file chooser support. It is not Jetpack Compose and is not a store-ready security boundary.
+
+The server's recommended remote pattern remains loopback behind an authenticated TLS reverse proxy. The shell needs end-to-end validation that authentication reaches WebView API `fetch` requests, URL navigation stays within an approved origin, and release signing/network policy are production-ready.
+
+## 9. Implemented controls versus remaining risk
+
+| Area | Implemented | Residual risk |
+| --- | --- | --- |
+| Model work | narrow roles, delegated tools, task state, failures | hallucination, false completion, latency |
+| Files | approved roots, traversal/sensitive-path checks | operator misconfiguration, OS-account access |
+| Browser | loopback, token option, CSRF/origin, CSP, safe rendering | not multi-user, reverse-proxy/operator error |
+| Privacy | ignored runtime paths, redaction, bounded logs | heuristic redaction, backups/history can retain data |
+| Documents | source preservation, annotations, review warning | extraction/layout loss, legal/factual error |
+| Communications | default disabled, staff reminders | unsafe if policies are deliberately relaxed |
+| Learning | private stores, category restrictions | incorrect learned lessons and local sensitive context |
+
+## 10. Release verification
+
+Normal source checks:
+
+```bash
+.venv/bin/python3 -m pip install -r requirements-dev.lock
+.venv/bin/python3 -m pytest -q
+node --check ui/static/app.js
+.venv/bin/python3 doctor.py
+git diff --check
 ```
 
-| Stage | Sees | Produces |
-| :--- | :--- | :--- |
-| **Main agent** | A dynamic ability list — one `delegate_<domain>` entry per capability domain, each flavored with the agent's own strongest matching skill belief | A plan, then a parsed-down directive per domain |
-| **Orchestrator subagent** | Its one domain: the directive, its specialists, and domain-scoped beliefs re-pulled from the same mRAG store | Fully-specified directives to individual tool subagents (max 3 rounds) |
-| **Tool subagent** | One tool's schema plus the owner's accumulated beliefs about how that tool actually behaves — deliberately *not* a "You are the…" persona | The exact tool call; output over ~1500 chars is chunk-summarized before it travels upward |
-| **Return summarizer** | The domain transcript | A first-person past-tense report — the only text the main agent receives |
-
-**Why the extra layers pay off.** Under a large pool of competing beliefs, an
-orchestrator has the same context budget as the main agent but spends all of it
-on one domain, so tool-use beliefs that lost the competition for the main
-agent's whole-task injection get pulled in where they matter. Each stage is
-also a natural place to record experience: every tool use writes an outcome
-belief, and reflection distills those into reusable `skills` entries.
-
-**Verbatim preservation.** Condensing happens only on the path *upward*. The
-full raw output of every tool call is written to
-`<Agent>-AI/workspace/.memory/tool_logs/<timestamp>_<tool>.json` before any
-summarization, so the record of what actually happened is never lossy.
-
-**Capability registry.** Domains and their tools are declared per agent in
-`<Agent>-AI/capabilities.yaml` with office-root-relative tool paths (resolved
-at load by `core/delegation.load_capabilities`). Adding a capability to an
-agent is a YAML edit plus a tool module — no kernel change. Zoe's
-`design_tool_subagent` performs both steps programmatically, which is how a
-newly cloned agent gets equipped.
-
----
-
-## 7. Autonomous Office Daemon
-
-`Marley-AI/core/office_daemon.py` (entry point: `run_office.py`) is the pulse
-that makes the suite autonomous rather than test-driven. Each cycle:
-
-1. **Board hygiene** — requeue tasks whose lease exceeded `office.task_lease_sec`;
-   requeue failures under `office.max_task_retries`; abandon those past it.
-2. **Inbox processing** — every hired agent drains its IPC inbox, executing the
-   requested tool where it has one.
-3. **Priority dispatch** — the scheduler agent assigns the next turn
-   (`CRITICAL` → `HIGH` → `NORMAL` → `BACKGROUND`). An office configured without
-   a scheduler agent falls back to the daemon's own equivalent dispatcher.
-4. **One real turn** — the assigned agent runs a single delegated LLM turn.
-   Exactly one turn executes at a time; this is the CPU/GPU protection charter.
-5. **Reflection & housekeeping** — on a fixed cadence and on idle cycles,
-   agents distill recent experience into skills; idle pulses back off up to
-   `office.idle_backoff_max_sec`.
-
-The roster is discovered from the filesystem, so a different starter pack or a
-newly cloned specialist is hired automatically on the next start.
-
----
-
-## 8. Known Limitations
-
-Stated plainly, because they affect how output should be treated:
-
-* **Small-model self-reporting.** 2B-class local models occasionally report a
-  step as done that they never performed. Grounded-reporting prompts (plan
-  first, summarize only what tool results confirm) reduce this substantially
-  but do not eliminate it. Generated documents and status summaries are drafts
-  requiring human review.
-* **Throughput.** A fully delegated turn is roughly 30 model calls — minutes per
-  task on CPU inference. The design trades latency for per-stage focus.
-* **Semantic recall.** The zero-dependency `DummyVectorStore` is hash-based, so
-  belief retrieval is keyword-adjacent rather than semantic until a real
-  embedding backend (ChromaDB) is configured.
-* **Statutory content.** Citations produced by a local model carry `[verify]`
-  markers and must be checked against official sources before any filing.
+Release review must also complete `docs/PUBLIC_BETA_CHECKLIST.md`, run the synthetic workflow in `docs/DEPLOYMENT.md`, validate template provenance, inspect the public Git history, and test backup/restore and rollback.

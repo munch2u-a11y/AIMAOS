@@ -116,3 +116,7 @@ Thumbs.db
 *.log
 *.tmp
 *.swp
+
+# Local coding-agent guidance and workspace state
+/AGENTS.md
+/.agents/

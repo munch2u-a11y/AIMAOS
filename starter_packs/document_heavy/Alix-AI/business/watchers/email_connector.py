@@ -48,7 +48,7 @@ class SecurityPolicyException(Exception):
 class EmailConnector:
     """
     Email Connector interface for Alix-AI / AIMAOS / Finn-AI.
-    Provides inbound IMAP polling & attachment extraction, and hardware-enforced outbound SMTP controls.
+    Provides inbound IMAP polling, attachment extraction, and software-enforced outbound SMTP controls.
     """
     def __init__(self, config=None):
         load_credentials_env()
@@ -73,7 +73,7 @@ class EmailConnector:
         self.password = os.environ.get("HELIX_EMAIL_PASS", self.config.get("password", ""))
 
     def check_outbound_policy(self, recipient):
-        """Hardware-enforces email security policies before any SMTP connection is initialized."""
+        """Enforces email policy before any SMTP connection is initialized."""
         if self.security_mode == "READ_ONLY":
             msg = f"SECURITY POLICY BLOCKED: READ_ONLY mode is active. Outbound emails are disabled system-wide. Cannot email '{recipient}'."
             logger.warning(msg)

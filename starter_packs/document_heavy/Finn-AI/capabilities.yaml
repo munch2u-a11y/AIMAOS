@@ -13,10 +13,6 @@ domains:
     - Finn-AI/tools/triage_incoming.py
     - Finn-AI/tools/check_office_status.py
     - Finn-AI/tools/commandeer_channel.py
-  voice_scribe:
-    description: Transcribe dictated audio notes and attach the takeaways to the right client case file.
-    tools:
-    - Finn-AI/tools/transcribe_audio_note.py
 seed_beliefs:
 - triage_incoming verifies the sender's real @-domain against the allowlist; spoofed suffixes stay UNVERIFIED and
   get NORMAL priority.
@@ -26,5 +22,3 @@ seed_beliefs:
   \ also logged into that case's own activity log \u2014 the global outbound log records that something was sent,\
   \ but only the case's own record makes the case manager aware of it. Only applies when the client already has\
   \ a real case; commandeer_channel silently skips the case-log step otherwise rather than inventing one."
-- transcribe_audio_note takes the audio file path and an optional client_name; naming the client attaches the transcript
-  to that case file instead of a general office note.

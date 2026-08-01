@@ -1,59 +1,56 @@
-# Technical Audit: Digital Librarian & Archiver (Kai Preset)
+# Technical Audit: Digital Librarian and Records Keeper (Kai Preset)
 
-## 1. Agent Overview
-- **Workspace**: `<office root>/Kai-AI`
-- **Primary Function**: External drive ingestion & file classification, digital library cataloging, client file record management, document deduplication scanning, and task log archiving.
+**Tracked source:** [`starter_packs/document_heavy/Kai-AI/`](../starter_packs/document_heavy/Kai-AI/)
+**Live workspace after setup:** `<office root>/Kai-AI/`
+**Configured model:** `qwen3.5:4b` in the checked-in example configuration.
 
----
+## Role
 
-## 2. Core Modules & Code Citations
+Kai creates and organizes matter records, ingests approved files, checks for likely duplicate records, and asks matter-local review agents to update summaries and next steps. Kai's record state is operational assistance, not a substitute for a document-management retention policy.
 
-### 2.1. Drive Ingestion Scanner (`tools/drive_ingestion.py`)
-Scans external drives (`/path/to/your/drive`), classifies root files vs subdirectories into Client Files, Legal Templates, and Reference Materials, and provisions client case directories under `<office root>/Alix-AI/workspace/output/`.
+## Record structure
 
-```python
-def scan_and_ingest(drive_path="/path/to/your/drive", organize_clients=True, catalog_templates=True):
-    # 1. Ingest Templates & Standalone Forms -> Alix-AI/templates/<category>/
-    # 2. Ingest Reference Documents -> workspace/reference_materials/
-    # 3. Process Client Files -> CLIENT FILES/ -> create_case_file -> instantiate CaseAgent
+[`business/client_file.py`](../starter_packs/document_heavy/Kai-AI/business/client_file.py) maintains:
+
+- a structured `.client_file_state.json` sidecar;
+- a human-readable `CLIENT_FILE.md`;
+- client slug, category/location, state, next steps, required documents, preferred channel, and activity entries;
+- SQLite case index synchronization;
+- explicit close/reopen/recategorize operations.
+
+Writes use atomic helpers where implemented. Moving/closing records is a consequential filesystem operation and should not race an active review.
+
+## Ingestion and review
+
+[`tools/drive_ingestion.py`](../starter_packs/document_heavy/Kai-AI/tools/drive_ingestion.py) scans an operator-approved directory, classifies material, copies data into the managed archive, and can create matter records. [`tools/process_incoming_file.py`](../starter_packs/document_heavy/Kai-AI/tools/process_incoming_file.py) requires an existing matter rather than inventing a client from a bare file.
+
+[`business/case_review.py`](../starter_packs/document_heavy/Kai-AI/business/case_review.py) and `manage_case_records action=review` perform a reasoning pass over trusted record text/file listings. The summary is a helpful draft; objective files and activity entries remain the evidence.
+
+```mermaid
+flowchart TD
+    Approved[Approved intake directory] --> Scan[drive_ingestion]
+    Scan --> Duplicate[check_duplicates]
+    Duplicate --> Record[Create or select matter record]
+    Record --> Copy[Copy file into managed matter]
+    Copy --> Review[Matter-local review]
+    Review --> Summary[CLIENT_FILE and structured state]
+    Review --> Followups[Office Board tasks and calendar suggestions]
 ```
 
-### 2.2. Client Case Record Manager (`tools/manage_case_records.py` & `business/client_file.py`)
-- Manages client case registers, updates next-steps checklists, tracks required documents, and auto-syncs record state to the transactional relational database ([office_sqlite.py](file://<office root>/core/db/office_sqlite.py)).
-- Auto-generates human-readable `CLIENT_FILE.md` markdown files in each client's case directory.
+## Capability surface
 
-### 2.3. Kai Task Log Archiver (`core/task_archiver.py`)
-Captures completed office task execution traces from the Office Board and writes permanent, structured JSON log archives for Zoe's synthesizer.
+Kai's active `library` domain contains duplicate checking, matter-record management, incoming-file processing, and drive ingestion. A backup module exists in source but is disabled by public-beta policy and is not registered in the active capability list.
 
-```python
-class KaiTaskArchiver:
-    def archive_task_execution(self, task_data, execution_trace):
-        filepath = os.path.join(TASK_LOGS_DIR, f"{task_id}.json")
-        archive_entry = {
-            "task_id": task_id,
-            "title": task_data.get("title"),
-            "requester": task_data.get("requester"),
-            "assigned_agent": task_data.get("assigned_agent"),
-            "priority": task_data.get("priority"),
-            "archived_at": datetime.now().isoformat(),
-            "execution_trace": execution_trace,
-            "status": "archived"
-        }
-        with open(filepath, "w") as f:
-            json.dump(archive_entry, f, indent=2)
-```
+`core/task_archiver.py` can write task-trace JSON for diagnostic use, but the current daemon does not automatically call it for every completion. Do not describe the archive as comprehensive.
 
-### 2.4. Deduplication Scanner Tool (`tools/check_duplicates.py`)
-- Scans existing client record directories (`workspace/output/`) using string normalization and fuzzy token matching to prevent duplicate form creation or conflicting client files.
+## Security and limitations
 
----
+- Approved-root/path policy applies before file tools execute.
+- Fuzzy duplicate matching can miss a duplicate or flag unrelated names.
+- A matter directory is not an OS sandbox; all agents run under the same account.
+- File classification and model-written summaries require staff review.
+- Backups, record locks during moves, retention, and deletion need operator procedures.
 
-## 3. Capabilities & Delegation Schema
-- **Capabilities Config**: `Kai-AI/capabilities.yaml`
-- **Domains**: `file_research`, `library`
-- **Registered Tools by Domain**:
-  - `file_research`: `browse_files`, `search_files`, `list_files`, `read_document`
-  - `library`: `check_duplicates`, `manage_case_records`, `process_incoming_file`, `backup_records`, `drive_ingestion`
+## Verification
 
-Task-trace archival (`core/task_archiver.py`) is invoked directly by the office
-pipeline rather than through a registered tool.
+Use synthetic directories to test duplicate detection, create/update/review, close/reopen/recategorize, path denial, interrupted writes, and audit findings. Confirm no real matter path enters Git.

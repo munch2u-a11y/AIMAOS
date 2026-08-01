@@ -3,7 +3,8 @@
 The default release gate is isolated and does not require a model or mutate live office data:
 
 ```bash
-python3 -m pytest
+.venv/bin/python3 -m pip install -r requirements-dev.lock
+.venv/bin/python3 -m pytest -q
 ```
 
 Pytest is configured to collect only `tests/unit/`. The older scripts below are manual integration and benchmark programs; run them by filename only after reading their side effects.
@@ -42,5 +43,7 @@ Benchmarks write raw results to `tests/benchmark_results*.json` (git-ignored).
 - Agent turn-loops need a tool-calling-capable model. If a suite reports
   `does not support tools (status code: 400)`, reassign that agent's model in
   `aimaos_config.yaml`.
-- Outbound email stays `SIMULATED` unless `AIMAOS_SMTP_SEND=1` and
-  credentials are configured, so dispatch suites never send real mail.
+- Keep email `READ_ONLY`, network/external mutations disabled, and
+  `AIMAOS_SMTP_SEND` unset for tests. A deliberately reconfigured integration
+  script can otherwise perform a real external action; do not run manual suites
+  against production credentials or data.

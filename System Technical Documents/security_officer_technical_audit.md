@@ -1,51 +1,48 @@
-# Technical Audit: Security Officer & Comms Gateway (Finn Preset)
+# Technical Audit: Security and Communications Gateway (Finn Preset)
 
-## 1. Agent Overview
-- **Workspace**: `<office root>/Finn-AI`
-- **Primary Function**: Incoming communication security triage, sender permission verification, client package output gateway, hardware email security policy enforcement, and Voice Scribe audio dictation transcription.
-- **Model**: `qwen3.5:2b` (configured in `aimaos_config.yaml`).
+**Tracked source:** [`starter_packs/document_heavy/Finn-AI/`](../starter_packs/document_heavy/Finn-AI/)
+**Live workspace after setup:** `<office root>/Finn-AI/`
+**Configured model:** `qwen3.5:2b` in the checked-in example configuration.
 
----
+## Role
 
-## 2. Core Modules & Code Citations
+Finn provides incoming-message classification, office-status inspection, and a policy-gated outbound communication wrapper. Security is ultimately enforced by deterministic code in `core/security.py` and the email connector, not by Finn's model judgment.
 
-### 2.1. Hardware-Enforced Email Security Gateway (`Alix-AI/business/watchers/email_connector.py`)
-Enforces strict outbound security modes configured in `aimaos_config.yaml`:
-- **`READ_ONLY` Mode (Default)**: Hard-blocks all outbound email attempts at the code level, raising a `SecurityPolicyException`.
-- **`WHITELIST_ONLY` Mode**: Restricts outbound sending strictly to approved email addresses in `approved_recipients`.
+## Incoming triage
 
-```python
-def check_outbound_policy(self, recipient):
-    if self.security_mode == "READ_ONLY":
-        raise SecurityPolicyException("SECURITY POLICY BLOCKED: READ_ONLY mode is active. Outbound emails are disabled system-wide.")
-    if self.security_mode == "WHITELIST_ONLY":
-        if recipient.lower() not in [r.lower() for r in self.approved_recipients]:
-            raise SecurityPolicyException(f"SECURITY POLICY BLOCKED: Recipient '{recipient}' is not in approved whitelist.")
-    return True
-```
+[`tools/triage_incoming.py`](../starter_packs/document_heavy/Finn-AI/tools/triage_incoming.py) parses the sender's actual domain, classifies simple research/scheduling/document intent, and posts a task to the Office Board. Its allowlist is a small code-level example, not a production identity proof. A sender marked “verified” by domain matching is not cryptographically authenticated.
 
-### 2.2. Voice Scribe & Audio Transcription Tool (`tools/transcribe_audio_note.py`)
-Transcribes audio recordings (`.wav`, `.mp3`, `.m4a`, `.webm`) using local transcription models (`shared_tools/transcribe_audio.py`), identifies target client cases, and automatically attaches transcript summaries into `CLIENT_FILE.md`.
+Raw incoming text is untrusted and may contain prompt injection. It remains task data and must not override system/tool policy.
 
-```python
-def execute(audio_path, client_name=None):
-    res = transcribe_audio_file(audio_path)
-    transcript = res.get("transcript", "")
-    # Updates target client CaseAgent record and CLIENT_FILE.md
-```
+## Outbound gateway
 
-### 2.3. Incoming Security Triage Engine (`tools/triage_incoming.py`)
-Inspects unsolicited incoming communications from Email, Web UI, Discord, or Telegram. Verifies sender security status against allowed domain/email whitelists before posting tasks to the Office Board.
+[`tools/commandeer_channel.py`](../starter_packs/document_heavy/Finn-AI/tools/commandeer_channel.py) calls Alix's [`email_connector.py`](../starter_packs/document_heavy/Alix-AI/business/watchers/email_connector.py). The path has layered software controls:
 
-### 2.4. Gateway Channel Commandering Subsystem (`tools/commandeer_channel.py`)
-Enables active roster turn agents (**Alix**, **Quinn**, **Marley**) to commandeer Finn's communication gateway to dispatch outbound email packages, subject to hardware policy verification.
+1. central tool policy blocks network tools by default;
+2. central policy separately blocks external mutations by default;
+3. email mode defaults to `READ_ONLY` and can restrict recipients;
+4. SMTP requires `AIMAOS_SMTP_SEND=1` and credentials;
+5. results distinguish blocked, simulated, failed, and dispatched states;
+6. a matter activity entry is written only for an actual dispatched result.
 
----
+The workstation's public-beta workflow does not expose direct send as a normal task. Requests such as “update the client” become attorney/staff reminders.
 
-## 3. Capabilities & Capabilities Schema
-- **Domains**: `file_research`, `gateway`, `voice_scribe`
-- **Capabilities Config**: `Finn-AI/capabilities.yaml`
-- **Registered Tools**:
-  - `triage_incoming`: Audits sender security and logs verified requests to the Office Board.
-  - `commandeer_channel`: Dispatches client packages subject to hardware policy rules.
-  - `transcribe_audio_note`: Transcribes audio dictation and syncs summaries to client case records.
+## Office status
+
+`check_office_status.py` reports board/agent state. It is an operational snapshot, not a health or security attestation.
+
+## Audio status
+
+Shared speech-to-text utilities exist, and the API can attach typed notes to a matter. The public starter pack does not currently include the former `transcribe_audio_note.py` wrapper, and the workstation does not offer direct microphone recording/transcription. Documentation must not advertise an integrated Voice Scribe until a complete, tested UI-to-local-transcriber flow exists.
+
+## Limitations
+
+- Domain allowlisting is not sender authentication.
+- IMAP/SMTP, remote speech, Telegram, and similar credentials alter the privacy boundary.
+- Email connector logs can contain message bodies and recipients in private runtime storage.
+- Software flags can be changed by an administrator; “disabled by default” is not an immutable guarantee.
+- The system has no multi-user approval identity or audit-grade signature.
+
+## Verification
+
+Test spoofed domains, unverified priority, default network denial, external-mutation denial, `READ_ONLY`, whitelist rejection, simulated mode, SMTP failure, truthful dispatch status, attachment path validation, and log privacy using synthetic addresses/content.

@@ -1,59 +1,54 @@
-# Technical Audit: Office Manager & Priority Scheduler (Marley Preset)
+# Technical Audit: Office Manager and Scheduler (Marley Preset)
 
-## 1. Agent Overview
-- **Workspace**: `<office root>/Marley-AI`
-- **Primary Function**: Autonomous office daemon loop management, turn priority scheduling, CPU/GPU load balancing, task lease hygiene, and calendar event tracking.
-- **Model**: `qwen3.5:2b` (configured in `aimaos_config.yaml`).
+**Tracked source:** [`starter_packs/document_heavy/Marley-AI/`](../starter_packs/document_heavy/Marley-AI/)
+**Live workspace after setup:** `<office root>/Marley-AI/`
+**Configured model:** `qwen3.5:4b` in the checked-in example configuration.
 
----
+## Role
 
-## 2. Core Modules & Code Citations
+Marley runs the autonomous daemon pulse, serializes daemon-managed agent turns, maintains task leases/retries, performs deterministic advancement review, manages the local calendar tool, and exposes cooperative pause/resume state to the workstation.
 
-### 2.1. Marley Office Daemon Loop (`core/office_daemon.py`)
-Marley operates as the main autonomous daemon pulse driving the entire AIMAOS office suite single-thought turn execution loop.
+## Daemon cycle
 
-```python
-class OfficeDaemon:
-    def pulse(self):
-        # 1. Audit Office Board hygiene (lease timeouts, requeue failed tasks)
-        # 2. Check agent inbox queues for inter-agent IPC dispatches
-        # 3. Schedule next highest priority turn from Office Board / SQLite database
-        # 4. Execute single-thought LLM turn for assigned roster agent
-        # 5. Trigger rotating background identity reflections
-```
+[`core/office_daemon.py`](../starter_packs/document_heavy/Marley-AI/core/office_daemon.py) performs:
 
-### 2.2. Priority Dispatch & Load Balancer (`core/orchestrator.py`)
-Prevents local hardware (CPU/GPU) bottlenecks by maintaining a single-thought turn sequence, ensuring high-value user workloads take immediate precedence over background maintenance.
+1. expired-lease and retry hygiene;
+2. each agent's IPC inbox processing;
+3. scheduled daily advancement review;
+4. selection of one queued task by priority;
+5. one assigned role-agent turn;
+6. periodic reflection;
+7. idle backoff.
 
-```python
-class MarleyOrchestrator:
-    def dispatch_next_turn(self):
-        # Priority Weights:
-        #   CRITICAL (10) - Emergency client dispatches
-        #   HIGH (7)     - Alix document filings & Quinn statutory research
-        #   NORMAL (5)   - Kai librarian cataloging & drive ingestion
-        #   BACKGROUND (1)- Zoe diagnostic reports & maintenance
-```
+`core/orchestrator.py` orders `CRITICAL`, `HIGH`, `NORMAL`, then `BACKGROUND` and excludes already dispatched work from new dispatch selection. The shared OfficeBoard also sorts each agent's own pending list by this order. Current priority is categorical; documentation should not imply a sophisticated predictive load balancer.
 
-### 2.3. Task Lease Hygiene & Requeue Engine
-- Audits stale tasks where `lease_expires_at < current_time`.
-- Requeues interrupted tasks up to `max_task_retries: 2`.
-- Prevents deadlocks if an agent process exits unexpectedly.
+## Advancement and Agenda
 
-### 2.4. Calendar & Schedule Manager (`tools/manage_schedule.py`)
-- Manages office deadlines, court hearing dates, and task completion milestones stored in `workspace/calendar/events.json` and synced to the relational SQLite database.
+The root [`core/workflow_review.py`](../core/workflow_review.py) is deterministic. It builds staff reminders, stale/overdue flags, dependency blockers, completion-review items, matter next steps, and safe navigation metadata. Communication tasks become staff-owned follow-ups when `workflow.direct_communications` is false.
 
----
+## Calendar
 
-## 3. Capabilities & Capabilities Schema
-- **Domains**: `file_research`, `scheduling`, `office_utilities`
-- **Capabilities Config**: `Marley-AI/capabilities.yaml`
-- **Registered Tools**:
-  - `manage_schedule`: Adds, updates, or lists calendared hearing dates and filing deadlines.
-  - `google_calendar`: Optional external calendar sync (inactive until credentials are configured).
-  - `calculator`, `unit_converter`, `timezone_convert`: General office utilities.
+[`tools/manage_schedule.py`](../starter_packs/document_heavy/Marley-AI/tools/manage_schedule.py) writes the internal `LocalCalendar`. Optional Google Calendar tooling is separately network-gated and is not a mirror/sync service unless explicitly invoked and configured.
 
-Task-lease hygiene is not a registered tool — it runs directly in the daemon's
-pulse (`core/office_daemon.py`: `requeue_expired_and_failed`), which requeues
-leases past `office.task_lease_sec` and abandons tasks that exhaust
-`office.max_task_retries`.
+## Pause/resume
+
+The workstation writes an atomic pause request. Marley checks it at turn boundaries, publishes `paused`, clocks agent statuses off duty, waits without accepting another turn, and resumes when the request clears. This is cooperative rather than an immediate process kill.
+
+## Failure behavior
+
+- In-progress tasks receive lease timestamps and can be requeued after expiry.
+- Failed tasks increment retries and are requeued or abandoned according to configuration.
+- Exceptions publish degraded status rather than silently stopping the office loop.
+- Dashboard jobs are a separate serialized executor; they are not scheduled by Marley.
+
+## Limitations
+
+- Priority labels and simple aging cannot understand every business consequence.
+- Calendar extraction does not calculate or guarantee legal deadlines.
+- Pause may wait for a long current model/tool turn.
+- No distributed lock coordinates several daemon processes; operators must run one managed daemon.
+- External calendar and communication operations remain disabled by default.
+
+## Verification
+
+Test dispatch order, lease expiry, retry exhaustion, review idempotency, human reminders, calendar behavior, pause during/after a turn, resume from stopped state, and single-daemon operations with synthetic tasks.

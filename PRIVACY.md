@@ -34,3 +34,7 @@ Redaction is heuristic and is not a data-loss-prevention guarantee. Matter summa
 - Optional email credentials: `~/.config/aimaos/credentials.env`.
 
 These paths are excluded from git, but backups and filesystem snapshots must be governed separately.
+
+## Publishing source
+
+`.gitignore` protects only untracked/new paths. It does not erase a runtime file, email address, credential, or local path from an older commit. Before pushing a public branch, review the tracked tree, commit-author metadata, embedded document metadata, and reachable history. Keep local `AGENTS.md`/`.agents/` guidance out of the public repository. A confirmed historical exposure requires coordinated history rewriting and credential rotation; deleting the file in a later commit is insufficient.

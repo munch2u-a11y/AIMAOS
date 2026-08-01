@@ -25,6 +25,8 @@ Review every generated artifact and every proposed external action. Do not enabl
 
 Do not include client files, secrets, absolute local paths, or model transcripts in a public issue. Use the repository owner's private security-reporting channel. Include the affected commit, reproduction steps using synthetic data, expected impact, and any suggested mitigation.
 
+Public-release review must include reachable Git history and commit metadata. Ignoring or deleting a sensitive file at HEAD does not make older blobs private. Treat any credential that entered a Git remote URL, commit, CI log, issue, or release artifact as exposed and rotate it.
+
 ## Response expectations
 
 This beta does not promise a formal response SLA. Confirmed critical issues should block further public-beta distribution until patched and regression-tested.

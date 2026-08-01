@@ -3,7 +3,7 @@
 This directory contains anonymized, synthetic examples demonstrating how **AIMAOS** manages client project & case records, evolves skills through Helix background reflections, and renders document templates across diverse business domains.
 
 > [!IMPORTANT]
-> **Privacy Guarantee**: All names, dates, addresses, and project/case numbers in this directory are 100% synthetic fictional data (e.g. *"Acme Logistics Solutions"*, *"Alex Montgomery"*, *"2026-CONSULT-042"*). No actual client or personal data is present.
+> **Synthetic-data notice:** These examples were created as fictional demonstrations (for example, *"Acme Logistics Solutions"*, *"Alex Montgomery"*, and *"2026-CONSULT-042"*). They are not intended to represent a real client or matter. Release reviewers should still scan examples and their Git history before publication rather than relying on this notice as a privacy guarantee.
 
 ---
 
@@ -27,7 +27,7 @@ Demonstrates legal & administrative case record management:
 ---
 
 ### 3. Learned Skill Belief Stores (`examples/learned_skills/`)
-- [`raw_belief_store_skills.json`](learned_skills/raw_belief_store_skills.json): Authentic, privacy-scrubbed raw belief store artifact preserving the exact runtime schema of `BeliefStore` (`belief_id`, `category`, `content`, `confidence`, `stability_index`, `verifications`, `access_count`, `relations`, `memory_refs`, `tags`, `conceptual_tags`, `relevance`, `weight`, `created_at`, `updated_at`).
+- [`raw_belief_store_skills.json`](learned_skills/raw_belief_store_skills.json): Synthetic representative belief-store artifact preserving the runtime schema of `BeliefStore` (`belief_id`, `category`, `content`, `confidence`, `stability_index`, `verifications`, `access_count`, `relations`, `memory_refs`, `tags`, `conceptual_tags`, `relevance`, `weight`, `created_at`, `updated_at`).
 - [`exported_skills.json`](learned_skills/exported_skills.json): A high-level, human-readable skill export format transformed for product-facing displays.
 
 ---

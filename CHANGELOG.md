@@ -1,5 +1,14 @@
 # Changelog
 
+## Unreleased
+
+- Consolidated the beta and architecture READMEs into an accurate workstation, workflow, privacy, and deployment guide with Mermaid diagrams.
+- Regenerated the system and role audits against the current starter-pack, UI, daemon, workflow-review, document-review, and security implementation.
+- Removed case-specific test text and public coding-agent guidance; local agent guidance is now ignored.
+- Corrected Finn's opt-in email wrapper so blocked or simulated attempts cannot be described or recorded as dispatched.
+- Removed a starter-pack voice capability whose implementation was not present; typed matter notes and optional shared audio utilities remain accurately documented.
+- Added Git-history, author-metadata, and embedded-document review to the public-release privacy gate.
+
 ## 0.2.0-beta.1
 
 - Rebuilt the browser experience around matters, drafts, work status, and an assistant.
@@ -14,3 +23,4 @@
 - Added Marley's deterministic daily advancement review with recursive task dependencies, stale-work promotion, false-completion review, and idempotent local reminders.
 - Added protected, fillable Word intake questionnaires with deterministic content-control extraction, approved-path enforcement, and explicit review of client-provided answers.
 - Added in-app document text review, line-level staff annotations, task-to-file navigation, and an explicit queue for applying corrections to a new draft.
+- Added cooperative agent pause/resume controls with truthful ready, pausing, paused, and unavailable UI states.

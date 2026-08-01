@@ -1,72 +1,73 @@
 # Product Beta Roadmap
 
-This roadmap separates what AIMAOS needs for a responsible small public beta from features that belong in later product releases. The benchmark was refreshed on 2026-07-31 using vendors' official product and support material.
+This roadmap separates responsible public-beta work from later office-suite scope. It uses common interaction patterns found across modern office assistants—one workspace for files and tasks, contextual assistance beside artifacts, visible sources, inline feedback, reusable workflows, and administrator-controlled data boundaries—without claiming feature parity with mature commercial suites.
 
-## Experience benchmark
+## Product position
 
-Current office-AI products converge on a few useful interaction patterns:
+AIMAOS should make a narrower, testable promise:
 
-- [Microsoft 365 Copilot](https://support.microsoft.com/en-us/microsoft-365-copilot/what-is-the-microsoft-365-copilot-app) presents one home for chat, files, search, content creation, and focused agents.
-- [Google Workspace with Gemini](https://knowledge.workspace.google.com/admin/generative-ai/workspace-with-gemini/google-workspace-with-gemini) puts contextual assistance inside the applications where work already happens and gives administrators centrally managed data controls.
-- [Notion Research Mode](https://www.notion.com/help/research-mode) exposes the sources used, lets the user narrow the source set, supports follow-up questions, and can save a result as a durable workspace artifact.
-- [Zoho Workplace](https://www.zoho.com/workplace/help/ai-in-zoho-workplace.html) emphasizes an assistant embedded across mail, documents, files, meetings, and other daily tools rather than a separate chat destination.
-- [ONLYOFFICE AI](https://www.onlyoffice.com/blog/2026/07/onlyoffice-made-friends-with-ai) combines inline document actions, reusable assistants, local Ollama support, provider choice, and opt-in AI processing.
+> A local-first workstation that turns approved files and office requests into prioritized tasks and reviewable matter artifacts using operator-selected local models.
 
-AIMAOS should not imitate the breadth of these mature suites during beta. Its defensible product promise is narrower: a private, local-first office work queue that turns files and requests into reviewable matter artifacts.
+It should not be marketed as an infallible autonomous employee, complete office-editor replacement, secure hosted service, or legal-deadline authority.
 
-## What this beta now establishes
+## Implemented beta foundation
 
-- One task-oriented workstation for an Agenda, matters, draft creation, work status, and the assistant.
-- A deterministic daily advancement review that makes human follow-ups, task dependencies, stale work, case steps, and blockers visible without sending communications.
-- Persistent jobs with visible pending, completed, failed, and interrupted states.
-- Matter-scoped file intake and summaries instead of an unstructured global chatbot.
-- Template provenance warnings and a permanent human-review boundary around generated drafts.
-- Local model selection with safe defaults and explicit permission before downloads.
-- Default-deny network, email, shell, self-modifying, and document-triggered actions.
-- Loopback-only serving, optional token authentication, restrictive browser headers, private runtime files, bounded retention, and reproducible dependency locks.
+- Home, Agenda, Matters, Create, Assistant, Settings, and daemon pause/resume in one browser workstation.
+- Persistent background jobs with queued, running, completed, failed, and interrupted states.
+- Deterministic daily advancement review for dependencies, stale work, blockers, staff communications, and suspicious completion.
+- One-click work-item navigation to a safe matter/file review target.
+- Matter-scoped intake, living summaries, file lists, and typed operator notes.
+- Template-driven DOCX drafts and protected fillable intake forms.
+- Extracted-text document review with line annotations, note status, stale-source warning, and deduplicated correction tasks.
+- Local model configuration, sequential daemon turns, layered tool delegation, and private per-agent operational memory.
+- Loopback-first API, optional token, CSRF/origin checks, safe browser rendering, path/upload limits, and default-deny network/external/shell/developer policy.
+- Direct communications represented as staff reminders under default policy.
 
-## Launch gates (P0)
+## P0 — before inviting public users
 
-Complete every item in `PUBLIC_BETA_CHECKLIST.md` before inviting users. The highest-risk remaining operational work is:
+1. Rewrite and rescan public Git history so no generated runtime/private artifacts or personal metadata remain reachable.
+2. Test install/setup/start/pause/resume/restart on a clean non-developer Linux account.
+3. Complete authoritative provenance and revision review for every bundled form.
+4. Exercise backup, restore, rollback, interrupted-job recovery, retention, and deletion using synthetic data.
+5. Run path traversal, cross-matter access, prompt injection, malformed document, XSS, oversized upload, and reverse-proxy tests.
+6. Complete keyboard, screen-reader, reduced-motion, small-screen, light-mode, and dark-mode review.
+7. Publish a private vulnerability route, support/feedback route, limitations, and stop-ship process.
+8. Record supported Python, Ollama, model, LibreOffice, and OS versions for the release commit.
 
-1. Test the installation and first-run instructions using a clean, non-developer Linux account.
-2. Verify every bundled template against an authoritative source and record jurisdiction, revision, source URL, and review date.
-3. Exercise backup, restore, rollback, interrupted-job recovery, retention, and deletion with synthetic data.
-4. Conduct keyboard-only, screen-reader, reduced-motion, small-screen, light-mode, and dark-mode review.
-5. Publish a support route, vulnerability-reporting route, beta privacy notice, known limitations, and stop-ship criteria.
-6. Run prompt-injection, malicious archive, path-traversal, XSS, oversized upload, and cross-matter isolation tests in the release environment.
+## P1 — make reviewed work faster and more grounded
 
-Do not advertise the beta as multi-user, unattended automation, secure cloud hosting, or a professional judgment replacement.
+1. **Grounded answers:** show the files and passages used for an answer and say when no support was found.
+2. **Approval center:** extend exact-target review to future email drafts, file moves, calendar mutations, and other external actions.
+3. **Document editing integration:** offer an opt-in, separately secured native-office bridge for selected-text rewrite and field population while preserving the current annotation audit trail.
+4. **Unified local search:** search matter names, summaries, filenames, drafts, jobs, and review notes with visible scope filters.
+5. **Reusable work recipes:** reviewed workflows with required inputs, expected artifacts, permissions, and failure checks.
+6. **Artifact feedback:** useful/not useful, corrected outcome, failure category, and comments without learning raw matter content by default.
+7. **Guided onboarding:** resumable model health, storage-root approval, synthetic sample, and privacy choices.
+8. **Migrations:** schema/runtime versioning, tested upgrade/rollback, and backup compatibility.
 
-## Recommended beta iterations (P1)
+## P2 — broader office-suite capability
 
-Prioritize improvements that shorten the path from evidence to a reviewed artifact:
+- signed desktop packages and verified updates;
+- multi-user identity, per-matter authorization, and audit review;
+- permission-scoped calendar/mail/cloud-file connectors;
+- spreadsheet and presentation-native workflows;
+- production mobile app and secure remote-administration profile;
+- data export, migration, uninstall, and managed retention;
+- measured semantic retrieval backend with a documented privacy boundary.
 
-1. **Grounded answers with evidence.** Show the matter files and passages used for an answer, provide direct open/download actions, and clearly say when no supporting source was found.
-2. **Expand the action review queue.** The beta now represents client communication as an inspectable staff reminder. Extend this pattern to exact-target email drafts, file moves, and other external changes, with separate human confirmation and audit history.
-3. **Inline document assistance.** Add an opt-in LibreOffice or ONLYOFFICE integration for selected-text rewrite, summarize, extract dates, and populate fields without copy/paste.
-4. **Reusable work recipes.** Turn frequent, reviewed prompts into named actions with required inputs, expected outputs, and explicit permission boundaries.
-5. **Unified local search.** Search matter names, filenames, summaries, generated drafts, and job results, with visible scope and source filters.
-6. **Feedback at the artifact.** Capture useful/not-useful, corrected outcome, failure category, and optional comments without storing raw client content by default.
-7. **Guided first run.** Move model health, storage-root approval, sample matter creation, and privacy choices into a resumable local onboarding flow.
+## Measures that matter
 
-## Later product work (P2)
-
-- Signed desktop packages, verified updates, migration tooling, and an uninstall/data-export flow.
-- A real multi-user authorization model, per-matter permissions, audit review, TLS deployment profiles, and secret management.
-- Provider abstraction beyond Ollama with a precise per-provider data-flow disclosure and opt-in controls.
-- Permission-aware connectors for calendar, mail, cloud files, and meetings.
-- Spreadsheet and presentation-native workflows after document and matter workflows are dependable.
-
-## Suggested beta measures
-
-Track measures that expose trust and usability rather than raw prompt volume:
-
-- successful clean installs and median time to first reviewed artifact;
-- job success, interruption, retry, and user-corrected failure rates;
+- clean-install success and time to first reviewed artifact;
+- job/task success, retry, interruption, and corrected-failure rates;
 - percentage of answers with usable supporting evidence;
-- generated drafts accepted, materially edited, or discarded;
-- external-action proposals approved, changed, or rejected;
-- support incidents involving privacy, cross-matter leakage, lost work, or misleading completion status.
+- drafts accepted, materially edited, or discarded;
+- staff reminders completed/snoozed and stale blockers resolved;
+- proposed external actions approved, changed, rejected, or blocked;
+- privacy, cross-matter, misleading-completion, and data-loss incidents;
+- median local model time and resource use by workflow.
 
-Any confirmed data exposure, cross-matter access, unreviewed external action, unrecoverable data loss, or falsely reported completion should stop new beta onboarding until investigated.
+Prompt volume and agent activity are not success metrics by themselves.
+
+## Stop-ship conditions
+
+Stop new onboarding for confirmed data exposure, reachable private Git history, cross-matter access, unreviewed external action, unrecoverable data loss, authentication/path-policy bypass, or a workflow that reports consequential work complete without the required evidence/review.

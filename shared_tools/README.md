@@ -17,15 +17,17 @@ new capability without hand-authoring a schema.
 
 ## What's implemented right now
 
-| Tool | Needs | Works with no setup? |
+“Implemented” means a module has an executable body; it does not mean public-beta policy permits the call. `security.allow_network_tools`, `security.allow_external_mutations`, `security.allow_shell_tools`, developer mode, path checks, and optional dependencies are enforced separately.
+
+| Tool | Needs | Module behavior |
 |---|---|---|
-| `web_fetch` | nothing | yes |
+| `web_fetch` | network policy enabled | performs HTTP read when explicitly enabled |
 | `calculator` | nothing | yes |
 | `unit_converter` | nothing | yes |
 | `timezone_convert` | nothing | yes |
-| `rss_feed_read` | nothing | yes |
-| `web_search` | `BRAVE_SEARCH_API_KEY` or `SERPAPI_KEY` for reliable results | best-effort only (DuckDuckGo anti-bot-gates plain requests intermittently) |
-| `google_calendar` | `GOOGLE_CALENDAR_ACCESS_TOKEN` | no |
+| `rss_feed_read` | network policy enabled | reads a feed when explicitly enabled |
+| `web_search` | network policy; optional provider key | best-effort fallback can be anti-bot gated |
+| `google_calendar` | network/external-mutation policy plus access token | not configured by default |
 | `text_to_speech` | local `espeak-ng`/`espeak`/`flite`, or `TTS_API_URL` | no |
 | `speech_to_text` | `ffmpeg` + (`WHISPER_CPP_BIN`+`WHISPER_CPP_MODEL`, or `STT_API_URL`) | no |
 | `browse_files` | nothing | yes |
@@ -58,7 +60,7 @@ and have it update the env var on a cron; that flow is intentionally out of
 scope for the tool itself. Optionally set `GOOGLE_CALENDAR_ID` (defaults to
 `primary`).
 
-**Web search** — works out of the box via a no-key DuckDuckGo scrape, but
+**Web search** — after the operator enables network tools, a no-key DuckDuckGo scrape may work, but
 that path can fail (DuckDuckGo shows an anti-bot challenge to non-browser
 traffic unpredictably). For reliable results, get a free key from
 [Brave Search API](https://brave.com/search/api/) (`BRAVE_SEARCH_API_KEY`)
@@ -77,10 +79,10 @@ downloaded `ggml-*.bin` model. `ffmpeg` (already installed) handles format
 normalization. Alternatively set `STT_API_URL` (and `STT_API_KEY`) to a
 hosted transcription endpoint that accepts a multipart file upload.
 
-Set these as real environment variables for whichever process runs the
-office daemon (`run_office.py`) — a `.env` loaded by your shell profile or
-the launch script works fine; nothing in these tools reads a special config
-file, only `os.environ`.
+Set integration credentials as environment variables for the daemon process.
+Do not store them in tracked files or command output. Enabling a hosted speech,
+search, calendar, or other provider changes the data-flow boundary described in
+`PRIVACY.md` and must be reviewed separately.
 
 ## Adding more from the catalog
 
@@ -97,6 +99,8 @@ For a `scaffold` entry it writes a stub into the target agent's own
 "NOT YET IMPLEMENTED" until its `execute()` body is written, or you pass
 `command_template` to wrap a local shell command directly (same mechanism
 `design_tool_subagent.py` uses).
+
+Catalog installation, tool design, and shell-backed tools are developer operations and are disabled by default. Review generated code before enabling it.
 
 ## Adding something *not* in the catalog
 

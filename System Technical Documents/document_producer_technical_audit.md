@@ -1,76 +1,66 @@
-# Technical Audit: Document Producer & Keeper Agent (Alix Preset)
+# Technical Audit: Document Producer and Keeper (Alix Preset)
 
-## 1. Agent Overview
-- **Workspace**: `<office root>/Alix-AI`
-- **Primary Function**: Intake form processing, Jinja2 Word template rendering, legal template library cataloging, context validation, dynamic Table of Contents (TOC) XML injection, PDF compilation, and outbound client package dispatch.
+**Tracked source:** [`starter_packs/document_heavy/Alix-AI/`](../starter_packs/document_heavy/Alix-AI/)
+**Live workspace after setup:** `<office root>/Alix-AI/`
+**Configured model:** `qwen3.5:4b` in the checked-in example configuration.
 
----
+## Role
 
-## 2. Core Modules & Code Citations
+Alix produces reviewable documents from approved templates and structured context, reads supported office files, manages template metadata, and archives completed drafts into matter records. Rendering success does not establish legal sufficiency.
 
-### 2.1. Template Cataloger Tool (`tools/catalog_templates.py`)
-Indexes legal templates across practice area directories (`Alix-AI/templates/`), extracts file metadata, and updates `template_registry.json` and SQLite `templates` table records.
+## Document pipeline
 
-```python
-def scan_and_index_templates(templates_dir="<office root>/Alix-AI/templates"):
-    # Walks practice area template directories (family_law, estate_planning, guardianship, probate, name_change)
-    # Extracts file size, modifications, and category mappings
-    # Updates template_registry.json and relational database
+[`business/document_engine.py`](../starter_packs/document_heavy/Alix-AI/business/document_engine.py) uses `docxtpl`/`python-docx` to render DOCX, inject optional TOC fields, add fillable content controls for intake templates, re-open saved documents for validation, and optionally call LibreOffice for PDF conversion.
+
+[`tools/populate_template.py`](../starter_packs/document_heavy/Alix-AI/tools/populate_template.py):
+
+1. resolves configured template/output directories through approved-root policy;
+2. normalizes the template identifier and suggests close matches;
+3. reads required fields from adjacent `template.yaml`;
+4. sanitizes the output name;
+5. renders DOCX and optionally PDF;
+6. reports leftover tags, visible missing-field placeholders, and structural reopen errors.
+
+```mermaid
+flowchart LR
+    Template[Reviewed template and metadata] --> Context[Structured fields]
+    Context --> Render[DOCX render]
+    Render --> Validate[Reopen and inspect]
+    Validate -->|issues| Review[Needs correction]
+    Validate -->|clean render| Draft[Draft artifact]
+    Draft --> Human[Human review]
+    Human --> Archive[Matter archive]
 ```
 
-### 2.2. Document Engine (`business/document_engine.py`)
-Renders legal context data into Jinja2-tagged Microsoft Word `.docx` templates using `docxtpl`.
+## Template and form tools
 
-```python
-class DocumentEngine:
-    def __init__(self, template_path):
-        self.template_path = os.path.abspath(template_path)
+- `catalog_templates.py` writes a JSON inventory in the selected template directory. It does **not** itself synchronize SQLite.
+- `build_fillable_form.py` converts supported intake placeholders into protected Word content controls and is intended as a developer/template-maintenance operation.
+- `read_filled_form.py` reads real content-control values from returned forms; typed statements remain unverified matter content.
+- `review_templates.py` and some template mutation tools exist but are disabled by default.
+- `document_text.py`/the workstation provide extracted-text browser review separate from native DOCX editing.
 
-    def generate(self, context, output_path, convert_pdf=False):
-        doc = DocxTemplate(self.template_path)
-        doc.render(context)
-        doc.save(output_path)
-```
+The tracked library includes selected blank Florida family/name-change forms plus example estate documents and intake questionnaires. Each item requires provenance, revision, jurisdiction, and human validation before real use. The existence of an intake questionnaire does not imply a court-ready filing template for that matter type.
 
-- **TOC Injection (`_add_toc`)**: Injects low-level OpenXML elements (`w:fldChar`, `w:instrText`) into Word document paragraphs to generate native Word Table of Contents fields.
-- **PDF Conversion (`_convert_to_pdf`)**: Invokes LibreOffice (`soffice --headless --convert-to pdf`) to produce production PDF court filings.
+## Dispatch and communication
 
-### 2.3. Template Reviewer Subagent (`business/subagents/template_reviewer.py`)
-Designed for local 2B–8B parameter LLMs:
-- Evaluates legal `.docx` templates in **20-paragraph token-bounded windows** (`CHUNK_PARAGRAPH_SIZE = 20`, ~300-500 tokens per call).
-- Audits templates to ensure all blank underlines (`_______`) are converted to Jinja2 tags (e.g. `{{ client_name }}`).
+`dispatch_document.py` can archive a generated DOCX/PDF into a matter and update its record. Providing a recipient makes it an external mutation, so central tool policy denies that path by default. Email has an additional `READ_ONLY`/whitelist/software switch and explicit SMTP enablement.
 
-### 2.4. Email Connector (`business/watchers/email_connector.py`)
-- Dispatches completed legal document packages, identified next steps, and statutory summaries to client email recipients.
-- Logs outbound dispatches to `<office root>/Alix-AI/workspace/output/outbound_email_log.json`.
+Archive success and email delivery are separate states. A blocked or simulated communication must never be logged as sent.
 
----
+## Capability domains
 
-## 3. Practice Area Template Categories
-1. **Family Law**: Simplified Dissolution of Marriage, Financial Affidavit, Child Support Guidelines
-2. **Name Change**: Adult Name Change Petition & Final Judgment, Minor Name Change Petition
-3. **Estate Planning**: DPOA Letters of Authority, Last Will & Testament, Revocable Trust Templates
-4. **Probate**: Affidavit of Heirs, Petition for Probate Administration
-5. **Guardianship**: Letters of Guardian Advocate, Guardian Intakes
-6. **Housing & Notices**: 3-Day Eviction Notice, Notice of Hearing
+- `file_research`;
+- `document_production`;
+- `memory_and_skills` (restricted tools remain policy-gated);
+- `office_comms` (external actions disabled by default);
+- optional voice/scanned-document tools, subject to local dependencies and policy.
 
----
+## Limitations and verification
 
-## 4. Capabilities & Delegation Schema
-- **Capabilities Config**: `Alix-AI/capabilities.yaml`
-- **Domains**: `file_research`, `document_production`, `memory_and_skills`, `office_comms`, `voice_intake`, `scanned_document_intake`
-- **Registered Tools by Domain**:
-  - `file_research`: `browse_files`, `search_files`, `list_files`, `read_document`
-  - `document_production`: `populate_template`, `write_document`, `dispatch_document`, `review_templates`, `catalog_templates`, `edit_image`, `assemble_pdf`
-  - `memory_and_skills`: `manage_memory`, `manage_skills`, `ingest_document`, `run_script`
-  - `office_comms`: `ask_agent`, `draft_client_request`
-  - `voice_intake`: `speech_to_text`, `text_to_speech`
-  - `scanned_document_intake`: `read_scanned_document`
+- Native formatting, floating objects, tracked changes, field codes, and scans may not extract/render perfectly.
+- OCR and model-derived fields require independent confirmation.
+- PDF conversion depends on LibreOffice.
+- Template revision can make an otherwise valid render obsolete.
 
-Alix reasons over these **domains**, not over raw tool schemas: each turn it
-delegates a directive to a domain orchestrator, which selects and briefs the
-specific tool subagent. See `core/delegation.py`.
-
-> Alix also ships an interactive CLI (`Alix-AI/main.py`) that runs a
-> conventional direct tool loop against the same tool set, for hands-on use
-> outside the autonomous daemon.
+Run fillable-form, document-text, document-review, and representative LibreOffice conversion tests. Inspect the final visual document and authoritative form source before filing or delivery.

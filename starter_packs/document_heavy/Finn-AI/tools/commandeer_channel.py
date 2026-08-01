@@ -102,10 +102,13 @@ def execute(calling_agent, recipient_email, subject, body, attachments=None, cli
     if has_discord:
         comms_status += " | Discord Bot Gateway (Configured)"
 
+    delivered = ": DISPATCHED (" in res.upper()
     case_note = ""
-    if client_name and "FAILED" not in res and client_file.client_exists(client_name):
+    if client_name and delivered and client_file.client_exists(client_name):
         client_file.log_entry(
             client_name, f"Finn sent '{subject}' to {recipient_email} on behalf of {calling_agent}.")
         case_note = f"\n- Filed in case record for {client_name}"
 
-    return f"Finn Gateway: Channel commandeered by {calling_agent}. Outbound communication dispatched to {recipient_email}.\n- Channel Status: {comms_status}\n- Result: {res}{case_note}"
+    outcome = "dispatched" if delivered else "not dispatched"
+    return (f"Finn Gateway: Channel request by {calling_agent} was {outcome}.\n"
+            f"- Channel Status: {comms_status}\n- Result: {res}{case_note}")

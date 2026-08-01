@@ -18,7 +18,7 @@ starter_packs/<pack_name>/
 ├── Marley-AI/                # Office Manager & Priority Scheduler
 ├── Quinn-AI/                 # Legal & Statutory Research Intelligence
 ├── Zoe-AI/                   # DevOps Maintenance & Synthesizer
-├── Finn-AI/                  # Security Officer, Comms Gateway, & Voice Scribe
+├── Finn-AI/                  # Security Officer & Comms Gateway
 └── Rae-AI/                   # Agent Maker & Workspace Cloner
 ```
 
@@ -31,8 +31,8 @@ At minimum: `capabilities.yaml`, `config.yaml`, `core/agent.py` (the agent's slo
 ## 🏛️ Integrated Office Capabilities & Extensions
 
 ### 1. Relational SQLite Database Core (`core/db/office_sqlite.py`)
-- Tracks `cases`, `tasks`, and `templates` in `comms/office_database.sqlite` with atomic file locks.
-- Auto-syncs case registers to human-readable `CLIENT_FILE.md` markdown files.
+- Tracks `cases`, `tasks`, `templates`, and dashboard jobs in `comms/office_database.sqlite`.
+- Matter tools maintain the human-readable `CLIENT_FILE.md`; SQLite does not independently author that summary.
 
 ### 2. External Drive Ingestion Pipeline (`shared_tools/ingest_ssd_drive.py`)
 - Scans external drives (a drive or folder path you pass in), classifies documents vs templates, provisions case directories under `Alix-AI/workspace/output/`, and instantiates dedicated `CaseAgent` managers.
@@ -41,12 +41,12 @@ At minimum: `capabilities.yaml`, `config.yaml`, `core/agent.py` (the agent's slo
 - Maintains shared category skills at `comms/category_skills/<category>.json`.
 - `CaseAgent` managers working in the same practice area (e.g. `name_change`, `estate_planning`, `probate`, `guardianship`, `family`) inherit category procedural knowledge without cluttering individual client files.
 
-### 4. Voice Scribe & Audio Transcription (`shared_tools/transcribe_audio.py` & `Finn-AI/tools/transcribe_audio_note.py`)
-- Transcribes voice notes (`.wav`, `.mp3`, `.m4a`, `.webm`) and automatically attaches summaries into the target client's `CLIENT_FILE.md`.
-- Accessible via the Web Dashboard (`http://localhost:8080`) via the **`🎙️ Voice Scribe`** button.
+### 4. Notes and optional audio utilities
+- The workstation can attach typed operator notes to a selected matter.
+- Shared local/remote speech utilities exist, but the public starter pack does not currently expose an end-to-end microphone transcription workflow. Audio uploads should not be described as transcribed until that feature is implemented and tested.
 
-### 5. Hardware-Enforced Email Security Gateway (`Alix-AI/business/watchers/email_connector.py`)
-- Configurable via `aimaos_config.yaml`: `READ_ONLY` (default, hard-blocks outbound sending) or `WHITELIST_ONLY` (approved internal recipients only).
+### 5. Software-Enforced Email Security Gateway (`Alix-AI/business/watchers/email_connector.py`)
+- Configurable via `aimaos_config.yaml`: `READ_ONLY` (default, blocks outbound sending) or `WHITELIST_ONLY` (approved recipients only), in addition to central network/external-mutation gates.
 
 ---
 
@@ -58,7 +58,9 @@ At minimum: `capabilities.yaml`, `config.yaml`, `core/agent.py` (the agent's slo
 | **Digital Librarian & Archiver** | `Kai` (Default) | Drive ingestion scanner (`drive_ingestion.py`), client record deduplication, task execution trace archival. |
 | **Office Manager & Scheduler** | `Marley` (Default) | Autonomous office daemon pulse loop (`office_daemon.py`), priority turn scheduling (`CRITICAL`, `HIGH`, `NORMAL`, `BACKGROUND`), load balancing. |
 | **Legal & Statutory Researcher** | `Quinn` (Default) | Statutory legal research, Florida Rules of Civil & Family Procedure, memorandum writing. |
-| **DevOps Engineer & Synthesizer** | `Zoe` (Default) | Task trace analysis, Hermes operational improvement report synthesis, performance bottleneck detection. |
-| **Security Officer & Comms Gateway** | `Finn` (Default) | Security triage, sender permission checks, hardware-enforced email security policies (`READ_ONLY`, `WHITELIST_ONLY`), Voice Scribe audio dictation gateway. |
+| **DevOps Engineer & Synthesizer** | `Zoe` (Default) | Workspace diagnostics and developer-gated tool/agent engineering. |
+| **Security Officer & Comms Gateway** | `Finn` (Default) | Incoming triage, office status, and software-enforced outbound policy (`READ_ONLY`, `WHITELIST_ONLY`). |
 | **Agent Maker & Cloner** | `Rae` (Default) | Workspace cloner (`clone_agent.py`), fully integrating new clones into main config, IPC bus queues, and Office Board. |
-| **Dedicated Case Manager** | `CaseAgent` (Dynamic) | Per-client mini-agent. Generates `CLIENT_FILE.md` summaries, required-document checklists, court deadlines, and inherits category practice skills. |
+| **Dedicated Case Manager** | `CaseAgent` (Dynamic) | Per-matter mini-agent. Drafts `CLIENT_FILE.md` summaries, required-document checklists, and next steps; recorded dates still require staff verification. |
+
+All starter-pack capabilities remain subject to `core/security.py`. Network, external mutation, shell, developer, and document-triggered delegation paths are disabled in the public-beta defaults even when a module exists in source.
