@@ -2,9 +2,11 @@
 
 The default release gate is isolated and does not require a model or mutate live office data:
 
-```bash
-.venv/bin/python3 -m pip install -r requirements-dev.lock
-.venv/bin/python3 -m pytest -q
+```text
+Windows: .\.venv\Scripts\python.exe -m pip install -r requirements-dev.lock
+         .\.venv\Scripts\python.exe -m pytest -q
+Linux:   .venv/bin/python3 -m pip install -r requirements-dev.lock
+         .venv/bin/python3 -m pytest -q
 ```
 
 Pytest is configured to collect only `tests/unit/`. The older scripts below are manual integration and benchmark programs; run them by filename only after reading their side effects.
@@ -12,8 +14,9 @@ Pytest is configured to collect only `tests/unit/`. The older scripts below are 
 Run everything from the office root with the interpreter that has the
 dependencies installed:
 
-```bash
-python3 tests/<suite>.py
+```text
+Windows: .\.venv\Scripts\python.exe tests\<suite>.py
+Linux:   .venv/bin/python3 tests/<suite>.py
 ```
 
 **These are integration suites, not unit tests.** Several drive real local

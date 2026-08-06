@@ -8,43 +8,14 @@ def _find_aimaos_root():
 AIMAOS_ROOT = os.environ.get("AIMAOS_ROOT") or _find_aimaos_root()
 import json
 import logging
-from contextlib import contextmanager
 from datetime import datetime, timedelta
 from core.atomic_io import atomic_write_json
-
-try:
-    import fcntl
-except ImportError:  # Windows
-    fcntl = None
-    import msvcrt
+from core.file_lock import exclusive_file_lock
 
 logger = logging.getLogger(__name__)
 
 OFFICE_BOARD_FILE = os.path.join(AIMAOS_ROOT, "comms/office_board.json")
 OFFICE_BOARD_LOCK = OFFICE_BOARD_FILE + ".lock"
-
-
-@contextmanager
-def _exclusive_file_lock(path):
-    """Hold a one-byte cross-process lock on POSIX or Windows."""
-    with open(path, "a+b") as lock_f:
-        if fcntl is not None:
-            fcntl.flock(lock_f, fcntl.LOCK_EX)
-        else:
-            lock_f.seek(0, os.SEEK_END)
-            if lock_f.tell() == 0:
-                lock_f.write(b"\0")
-                lock_f.flush()
-            lock_f.seek(0)
-            msvcrt.locking(lock_f.fileno(), msvcrt.LK_LOCK, 1)
-        try:
-            yield
-        finally:
-            if fcntl is not None:
-                fcntl.flock(lock_f, fcntl.LOCK_UN)
-            else:
-                lock_f.seek(0)
-                msvcrt.locking(lock_f.fileno(), msvcrt.LK_UNLCK, 1)
 
 class OfficeBoard:
     """
@@ -52,7 +23,7 @@ class OfficeBoard:
     Tracks active tasks, priority queues, agent turn assignments, and live activity stream.
 
     Multiple agent processes read and mutate this board concurrently, so every
-    mutation re-reads the file under an exclusive flock before writing back —
+    mutation re-reads the file under an exclusive advisory lock before writing back —
     otherwise two agents holding stale in-memory copies overwrite each other's
     tasks (last-writer-wins data loss).
     """
@@ -92,7 +63,7 @@ class OfficeBoard:
         retained during the beta for compatibility with existing agents, but
         database sync failures are logged instead of silently hidden.
         """
-        with _exclusive_file_lock(OFFICE_BOARD_LOCK):
+        with exclusive_file_lock(OFFICE_BOARD_LOCK):
             self.board = self._load_board()
             result = mutate_fn(self.board)
             try:

@@ -1020,7 +1020,8 @@ class AIMAOSUIHandler(SimpleHTTPRequestHandler):
                 if sys.platform == "darwin":
                     opener = ["open", file_path]
                 elif os.name == "nt":
-                    opener = ["cmd", "/c", "start", "", file_path]
+                    os.startfile(file_path)
+                    return self._send_json({"status": "success", "message": "Opened in the system application."})
                 else:
                     native_opener = shutil.which("xdg-open")
                     if not native_opener:

@@ -10,10 +10,11 @@ import json
 import logging
 import yaml
 from datetime import datetime
+from core.platform_support import user_config_path
 
 logger = logging.getLogger(__name__)
 
-CREDENTIALS_ENV_PATH = os.path.expanduser("~/.config/aimaos/credentials.env")
+CREDENTIALS_ENV_PATH = user_config_path("credentials.env")
 CONFIG_PATH = os.path.join(AIMAOS_ROOT, "aimaos_config.yaml")
 OUTBOUND_LOG_FILE = os.path.join(AIMAOS_ROOT, "Alix-AI/workspace/output/outbound_email_log.json")
 INBOUND_ATTACHMENTS_DIR = os.path.join(AIMAOS_ROOT, "Finn-AI/workspace/inbound_emails")
