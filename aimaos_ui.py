@@ -47,6 +47,7 @@ AIMAOS_ROOT = os.environ.get("AIMAOS_ROOT") or _find_aimaos_root()
 sys.path.insert(0, AIMAOS_ROOT)
 
 from core.comms.office_board import OfficeBoard
+from core.case_specialist_service import notify_case_changed
 from core.db.office_sqlite import OfficeSQLite
 from core.document_review import DocumentReviewStore
 from core.document_text import extract_document_text, validate_upload_content
@@ -306,50 +307,6 @@ def _public_job(job: dict) -> dict:
     return public
 
 
-def _write_case_summary(case_dir: str, client_name: str, review: dict, recent_file: str,
-                        extraction_detail: str) -> str:
-    """Persist a transparent, human-readable review artifact."""
-    summary_path = resolve_within(case_dir, "CLIENT_FILE.md")
-    lines = [
-        f"# Matter: {client_name}",
-        "",
-        "> AI-generated working summary. Verify all facts, dates, and next steps.",
-        "",
-        f"**Last reviewed:** {datetime.now().strftime('%Y-%m-%d %H:%M')}",
-        f"**Most recent intake:** {recent_file}",
-        f"**Content processing:** {extraction_detail}",
-        "",
-        "## Status summary",
-        "",
-        str(review.get("summary") or "The automated review did not produce a summary. Manual review is required."),
-        "",
-        "## Next steps",
-        "",
-    ]
-    next_steps = review.get("next_steps") if isinstance(review.get("next_steps"), list) else []
-    lines.extend(f"- {str(item)[:1000]}" for item in next_steps[:20])
-    if not next_steps:
-        lines.append("- Manual review required.")
-
-    lines.extend(["", "## Required documents", ""])
-    required = review.get("required_documents") if isinstance(review.get("required_documents"), dict) else {}
-    lines.extend(f"- {str(name)[:300]} — {str(status)[:500]}" for name, status in list(required.items())[:50])
-    if not required:
-        lines.append("- None identified by the automated review.")
-
-    lines.extend(["", "## Deadlines", ""])
-    deadlines = review.get("deadlines") if isinstance(review.get("deadlines"), list) else []
-    for deadline in deadlines[:20]:
-        if isinstance(deadline, dict):
-            lines.append(f"- {str(deadline.get('date', 'Unverified date'))[:100]} — "
-                         f"{str(deadline.get('description', ''))[:800]}")
-    if not deadlines:
-        lines.append("- None identified. Confirm independently.")
-    lines.append("")
-    atomic_write_text(summary_path, "\n".join(lines))
-    return summary_path
-
-
 def _resolve_public_case_file(case_dir: str, rel_path: str, *, must_exist: bool = True) -> str:
     candidate = resolve_within(case_dir, rel_path, must_exist=must_exist)
     if candidate != os.path.realpath(case_dir):
@@ -461,6 +418,19 @@ def _queue_document_feedback(
         },
     )
     return task_id, True
+
+
+def _queue_case_specialist_refresh(*, case_dir: str, client_name: str, reason: str) -> str:
+    """Run a digest-coalesced case refresh away from the HTTP request thread."""
+    return get_job_manager().submit(
+        "case-review",
+        f"Refresh {client_name}",
+        lambda: notify_case_changed(
+            case_dir,
+            client_name=client_name,
+            reason=reason,
+        ),
+    )
 
 
 class AIMAOSUIHandler(SimpleHTTPRequestHandler):
@@ -826,23 +796,11 @@ class AIMAOSUIHandler(SimpleHTTPRequestHandler):
                 )
 
                 def ingest_job():
-                    from core.case_agent import CaseAgent
-                    existing_summary = "No prior summary."
-                    summary_path = resolve_within(matter_dir, "CLIENT_FILE.md")
-                    if os.path.isfile(summary_path):
-                        with open(summary_path, "r", encoding="utf-8", errors="replace") as handle:
-                            existing_summary = handle.read(250_000)
-                    listing = []
-                    for name in sorted(os.listdir(matter_dir)):
-                        if not name.startswith("."):
-                            listing.append(name)
                     extraction = extract_document_text(saved_file)
-                    update = CaseAgent(matter_dir, client_name, category="general").review(
-                        existing_summary, "\n".join(listing),
-                        document_excerpt=extraction.text if extraction.status == "extracted" else None,
-                    )
-                    _write_case_summary(
-                        matter_dir, client_name, update, os.path.basename(saved_file), extraction.detail
+                    review_result = notify_case_changed(
+                        matter_dir,
+                        client_name=client_name,
+                        reason=f"Secure intake upload: {os.path.basename(saved_file)}",
                     )
                     OfficeBoard().log_activity(
                         f"[Secure Intake] Reviewed a new file for matter '{slug}'."
@@ -851,10 +809,11 @@ class AIMAOSUIHandler(SimpleHTTPRequestHandler):
                         "matter_slug": slug,
                         "file_name": os.path.basename(saved_file),
                         "review_status": (
-                            "completed" if update and extraction.status == "extracted"
+                            "completed" if review_result.get("status") == "applied"
                             else "manual_review_required"
                         ),
                         "extraction_status": extraction.status,
+                        "case_specialist": review_result,
                     }
 
                 job_id = get_job_manager().submit("intake", f"Review {filename}", ingest_job)
@@ -901,6 +860,11 @@ class AIMAOSUIHandler(SimpleHTTPRequestHandler):
                     OfficeSQLite().upsert_case(
                         slug, client_name, matter_dir, matter_type=template["name"], category="documents"
                     )
+                    review_result = notify_case_changed(
+                        matter_dir,
+                        client_name=client_name,
+                        reason=f"Generated document: {os.path.basename(output_path)}",
+                    )
                     OfficeBoard().log_activity(
                         f"[Document Studio] Generated draft '{os.path.basename(output_path)}' for {client_name}."
                     )
@@ -910,6 +874,7 @@ class AIMAOSUIHandler(SimpleHTTPRequestHandler):
                         "document_status": result.get("status"),
                         "issues": result.get("issues", {}),
                         "draft_notice": "Human review is required before filing, sending, or relying on this draft.",
+                        "case_specialist": review_result,
                     }
 
                 job_id = get_job_manager().submit("document", f"Generate {template['name']}", document_job)
@@ -1020,9 +985,15 @@ class AIMAOSUIHandler(SimpleHTTPRequestHandler):
                 task_id, created = _queue_document_feedback(
                     case=case, slug=slug, case_dir=case_dir, normalized_rel=normalized_rel,
                 )
+                review_job_id = _queue_case_specialist_refresh(
+                    case_dir=case_dir,
+                    client_name=str(case.get("client_name") or slug),
+                    reason=f"Submitted document corrections: {normalized_rel}",
+                )
                 return self._send_json({
                     "status": "success",
                     "task_id": task_id,
+                    "review_job_id": review_job_id,
                     "message": (
                         "Document corrections were queued for Alix."
                         if created else "Document corrections are already in the office queue."

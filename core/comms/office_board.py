@@ -7,15 +7,44 @@ def _find_aimaos_root():
     return p
 AIMAOS_ROOT = os.environ.get("AIMAOS_ROOT") or _find_aimaos_root()
 import json
-import fcntl
 import logging
+from contextlib import contextmanager
 from datetime import datetime, timedelta
 from core.atomic_io import atomic_write_json
+
+try:
+    import fcntl
+except ImportError:  # Windows
+    fcntl = None
+    import msvcrt
 
 logger = logging.getLogger(__name__)
 
 OFFICE_BOARD_FILE = os.path.join(AIMAOS_ROOT, "comms/office_board.json")
 OFFICE_BOARD_LOCK = OFFICE_BOARD_FILE + ".lock"
+
+
+@contextmanager
+def _exclusive_file_lock(path):
+    """Hold a one-byte cross-process lock on POSIX or Windows."""
+    with open(path, "a+b") as lock_f:
+        if fcntl is not None:
+            fcntl.flock(lock_f, fcntl.LOCK_EX)
+        else:
+            lock_f.seek(0, os.SEEK_END)
+            if lock_f.tell() == 0:
+                lock_f.write(b"\0")
+                lock_f.flush()
+            lock_f.seek(0)
+            msvcrt.locking(lock_f.fileno(), msvcrt.LK_LOCK, 1)
+        try:
+            yield
+        finally:
+            if fcntl is not None:
+                fcntl.flock(lock_f, fcntl.LOCK_UN)
+            else:
+                lock_f.seek(0)
+                msvcrt.locking(lock_f.fileno(), msvcrt.LK_UNLCK, 1)
 
 class OfficeBoard:
     """
@@ -63,50 +92,46 @@ class OfficeBoard:
         retained during the beta for compatibility with existing agents, but
         database sync failures are logged instead of silently hidden.
         """
-        with open(OFFICE_BOARD_LOCK, "a+") as lock_f:
-            fcntl.flock(lock_f, fcntl.LOCK_EX)
+        with _exclusive_file_lock(OFFICE_BOARD_LOCK):
+            self.board = self._load_board()
+            result = mutate_fn(self.board)
             try:
-                self.board = self._load_board()
-                result = mutate_fn(self.board)
-                try:
-                    from core.security import load_security_config
-                    retention_days = max(
-                        1, int(load_security_config().get("privacy", {}).get("log_retention_days", 30))
-                    )
-                    cutoff = datetime.now() - timedelta(days=retention_days)
-                    completed = []
-                    for task in self.board.get("completed_tasks", []):
-                        try:
-                            completed_at = datetime.fromisoformat(
-                                task.get("completed_at") or task.get("updated_at") or task.get("created_at")
-                            )
-                        except (TypeError, ValueError):
-                            completed_at = datetime.now()
-                        if completed_at >= cutoff:
-                            completed.append(task)
-                    self.board["completed_tasks"] = completed[-500:]
-                except Exception as exc:
-                    logger.warning("Could not prune Office Board history: %s", exc)
-                atomic_write_json(OFFICE_BOARD_FILE, self.board)
-                try:
-                    from core.db.office_sqlite import OfficeSQLite
-                    db = OfficeSQLite()
-                    all_tasks = (self.board.get("active_tasks", [])
-                                 + self.board.get("completed_tasks", []))
-                    for t in all_tasks:
-                        db.upsert_task(
-                            task_id=t.get("id") or t.get("task_id"),
-                            title=t.get("title", "Untitled"),
-                            description=str(t.get("details", "")),
-                            assigned_agent=t.get("assigned_agent", "Unassigned"),
-                            priority=t.get("priority", "NORMAL"),
-                            status=t.get("status", "queued")
+                from core.security import load_security_config
+                retention_days = max(
+                    1, int(load_security_config().get("privacy", {}).get("log_retention_days", 30))
+                )
+                cutoff = datetime.now() - timedelta(days=retention_days)
+                completed = []
+                for task in self.board.get("completed_tasks", []):
+                    try:
+                        completed_at = datetime.fromisoformat(
+                            task.get("completed_at") or task.get("updated_at") or task.get("created_at")
                         )
-                except Exception as exc:
-                    logger.exception("Could not synchronize Office Board to SQLite: %s", exc)
-                return result
-            finally:
-                fcntl.flock(lock_f, fcntl.LOCK_UN)
+                    except (TypeError, ValueError):
+                        completed_at = datetime.now()
+                    if completed_at >= cutoff:
+                        completed.append(task)
+                self.board["completed_tasks"] = completed[-500:]
+            except Exception as exc:
+                logger.warning("Could not prune Office Board history: %s", exc)
+            atomic_write_json(OFFICE_BOARD_FILE, self.board)
+            try:
+                from core.db.office_sqlite import OfficeSQLite
+                db = OfficeSQLite()
+                all_tasks = (self.board.get("active_tasks", [])
+                             + self.board.get("completed_tasks", []))
+                for t in all_tasks:
+                    db.upsert_task(
+                        task_id=t.get("id") or t.get("task_id"),
+                        title=t.get("title", "Untitled"),
+                        description=str(t.get("details", "")),
+                        assigned_agent=t.get("assigned_agent", "Unassigned"),
+                        priority=t.get("priority", "NORMAL"),
+                        status=t.get("status", "queued")
+                    )
+            except Exception as exc:
+                logger.exception("Could not synchronize Office Board to SQLite: %s", exc)
+            return result
 
     def _append_activity(self, board, message):
         board["activity_stream"].append({

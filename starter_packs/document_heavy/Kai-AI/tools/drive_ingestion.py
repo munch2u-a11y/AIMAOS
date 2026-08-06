@@ -19,8 +19,8 @@ from datetime import datetime
 sys.path.insert(0, AIMAOS_ROOT)
 sys.path.insert(0, os.path.join(AIMAOS_ROOT, "Kai-AI"))
 
-from business import client_file, case_review
-from core.case_agent import CaseAgent
+from business import client_file
+from core.case_specialist_service import notify_case_changed
 
 logger = logging.getLogger(__name__)
 
@@ -235,19 +235,13 @@ def _walk_client_files(client_files_root, report):
                     f"Ingested {len(copied_files)} document(s) from external drive location: {rel_dir}"
                 )
 
-                # Instantiate CaseAgent and run initial review pass
-                case_mgr = CaseAgent(case_dir=target_dir, client_name=client_name)
-                dir_list_str = "\n".join(os.listdir(target_dir))
-                current_md = client_file.get_markdown(client_name) or ""
-                
-                review_res = case_mgr.review(current_md, dir_list_str)
-                if review_res:
-                    summary = review_res.get("summary")
-                    next_steps = review_res.get("next_steps")
-                    req_docs = review_res.get("required_documents")
-                    client_file.update_status(
-                        client_name, summary=summary, next_steps=next_steps, required_documents=req_docs
-                    )
+                # Run one digest-scoped review after the complete folder batch
+                # is durable, rather than one review per copied document.
+                review_res = notify_case_changed(
+                    target_dir,
+                    client_name=client_name,
+                    reason=f"Drive ingestion batch: {rel_dir}",
+                )
 
                 report["clients_processed"].append({
                     "client_name": client_name,
@@ -255,7 +249,7 @@ def _walk_client_files(client_files_root, report):
                     "category": category,
                     "target_dir": target_dir,
                     "files_copied": len(copied_files),
-                    "review_status": "success" if review_res else "pending"
+                    "review_status": "success" if review_res.get("status") == "applied" else review_res.get("status")
                 })
 
             except Exception as e:

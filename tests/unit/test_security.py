@@ -27,7 +27,10 @@ def test_resolve_within_blocks_symlink_escape(tmp_path):
     outside = tmp_path / "outside"
     root.mkdir()
     outside.mkdir()
-    (root / "escape").symlink_to(outside, target_is_directory=True)
+    try:
+        (root / "escape").symlink_to(outside, target_is_directory=True)
+    except OSError:
+        pytest.skip("This host does not permit creating symbolic links.")
     with pytest.raises(SecurityValidationError):
         resolve_within(str(root), "escape", "record.txt")
 
