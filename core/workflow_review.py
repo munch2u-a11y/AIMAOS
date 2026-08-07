@@ -364,7 +364,7 @@ def _safe_normalize_slug(value) -> str | None:
         return None
 
 
-def _review_target(details: dict, cases_by_slug: dict, cases_by_name: dict) -> dict | None:
+def _review_target(details: dict, cases_by_slug: dict, cases_by_name: dict, title: str = "") -> dict | None:
     """Resolve task metadata to an opaque matter/file target safe for the browser."""
     requested_slug = _safe_normalize_slug(details.get("client_slug"))
     client_name = _clean(details.get("client_name"), 120)
@@ -373,6 +373,15 @@ def _review_target(details: dict, cases_by_slug: dict, cases_by_name: dict) -> d
         case = cases_by_name.get(client_name.casefold())
         if case is None:
             case = cases_by_slug.get(_safe_normalize_slug(client_name))
+
+    if case is None:
+        search_text = f"{client_name or ''} {title or ''}"
+        for token in re.findall(r"\b[A-Za-z0-9_-]{3,30}\b", search_text):
+            token_slug = _safe_normalize_slug(token)
+            if token_slug and token_slug in cases_by_slug:
+                case = cases_by_slug[token_slug]
+                break
+
     if case is None:
         return None
     slug = str(case.get("client_slug", ""))
@@ -453,7 +462,7 @@ def build_workstation_items(
             ):
                 if not target_details.get(key) and source_details.get(key):
                     target_details[key] = source_details[key]
-        target = _review_target(target_details, cases_by_slug, cases_by_name)
+        target = _review_target(target_details, cases_by_slug, cases_by_name, title=_clean(task.get("title"), 200))
         task_id = str(task.get("id") or task.get("task_id"))
         due = details.get("due_date")
         due_value = _due_date(due)

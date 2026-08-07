@@ -208,56 +208,63 @@ function findCaseSlug(matterName) {
 }
 
 async function openMatterFromWorkItem(slug, matterName, filePath = null) {
-  const targetSlug = slug || findCaseSlug(matterName);
-  if (!targetSlug) {
-    toast(`No matter files found matching "${matterName || "this item"}".`, true);
-    return;
+  let targetSlug = slug || findCaseSlug(matterName);
+  if (!targetSlug && state.cases && state.cases.length > 0) {
+    const text = `${slug || ""} ${matterName || ""}`;
+    const tokens = text.split(/[\s:_\-\[\]]+/);
+    for (const tok of tokens) {
+      if (tok.length >= 3) {
+        const found = findCaseSlug(tok);
+        if (found) {
+          targetSlug = found;
+          break;
+        }
+      }
+    }
   }
-  showView("matters");
-  const matter = await selectMatter(targetSlug);
-  if (!matter) return;
-  if (filePath) {
-    await openDocumentReview(targetSlug, filePath);
+
+  if (targetSlug) {
+    showView("matters");
+    const matter = await selectMatter(targetSlug);
+    if (!matter) return;
+    if (filePath) {
+      await openDocumentReview(targetSlug, filePath);
+    } else {
+      toast(`Opened matter details and files for ${matterName || targetSlug}.`);
+    }
   } else {
-    toast(`Opened matter details and files for ${matterName || targetSlug}.`);
+    showView("doc-studio");
+    toast(`Opened Document Studio workstation to address: "${matterName || "request"}".`);
   }
 }
 
 function workstationRow(item, interactive = true) {
   const reviewTarget = item.review_target || {};
-  const targetSlug = reviewTarget.client_slug || item.client_slug || findCaseSlug(item.matter);
+  const targetSlug = reviewTarget.client_slug || item.client_slug || findCaseSlug(item.matter) || findCaseSlug(item.title);
   const targetFile = reviewTarget.file_path || null;
-  const row = node("article", `work-item priority-${String(item.priority || "normal").toLowerCase()}${item.overdue ? " overdue" : ""}${targetSlug ? " clickable-item" : ""}`);
+  const row = node("article", `work-item priority-${String(item.priority || "normal").toLowerCase()}${item.overdue ? " overdue" : ""} clickable-item`);
   const copy = node("div", "work-copy");
 
   const titleText = item.title || "Untitled work item";
-  if (targetSlug) {
-    const titleBtn = node("button", "work-title-link", titleText);
-    titleBtn.type = "button";
-    titleBtn.title = `Click to view matter files for ${item.matter || targetSlug}`;
-    titleBtn.addEventListener("click", (e) => {
-      e.stopPropagation();
-      openMatterFromWorkItem(targetSlug, item.matter, targetFile);
-    });
-    copy.append(titleBtn);
-  } else {
-    copy.append(node("strong", "", titleText));
-  }
+  const titleBtn = node("button", "work-title-link", titleText);
+  titleBtn.type = "button";
+  titleBtn.title = `Click to address work item: ${item.matter || titleText}`;
+  titleBtn.addEventListener("click", (e) => {
+    e.stopPropagation();
+    openMatterFromWorkItem(targetSlug, item.matter || titleText, targetFile);
+  });
+  copy.append(titleBtn);
 
   const meta = node("div", "work-meta");
   if (item.matter) {
-    if (targetSlug) {
-      const matterBadge = node("button", "matter-tag clickable", item.matter);
-      matterBadge.type = "button";
-      matterBadge.title = `Open matter: ${item.matter}`;
-      matterBadge.addEventListener("click", (e) => {
-        e.stopPropagation();
-        openMatterFromWorkItem(targetSlug, item.matter, targetFile);
-      });
-      meta.append(matterBadge);
-    } else {
-      meta.append(node("span", "status-tag", item.matter));
-    }
+    const matterBadge = node("button", "matter-tag clickable", item.matter);
+    matterBadge.type = "button";
+    matterBadge.title = `Open matter: ${item.matter}`;
+    matterBadge.addEventListener("click", (e) => {
+      e.stopPropagation();
+      openMatterFromWorkItem(targetSlug, item.matter, targetFile);
+    });
+    meta.append(matterBadge);
   }
 
   [item.owner, item.priority, item.due_date ? `Due ${item.due_date}` : null]
@@ -266,18 +273,15 @@ function workstationRow(item, interactive = true) {
   copy.append(meta);
 
   if (item.blocker) {
-    const blocker = node("p", "work-explanation");
+    const blocker = node("p", "work-explanation clickable-text");
     blocker.append(node("strong", "", "Blocked: "), document.createTextNode(item.blocker));
-    if (targetSlug) {
-      blocker.title = "Click to open matter files and resolve blocker";
-      blocker.classList.add("clickable-text");
-      blocker.addEventListener("click", (e) => {
-        e.stopPropagation();
-        openMatterFromWorkItem(targetSlug, item.matter, targetFile);
-      });
-    }
+    blocker.title = "Click to address this blocker";
+    blocker.addEventListener("click", (e) => {
+      e.stopPropagation();
+      openMatterFromWorkItem(targetSlug, item.matter || titleText, targetFile);
+    });
     copy.append(blocker);
-    }
+  }
   if (item.next_action) {
     const next = node("p", "work-explanation");
     next.append(node("strong", "", "Next: "), document.createTextNode(item.next_action));
@@ -302,17 +306,41 @@ function workstationRow(item, interactive = true) {
 
   if (interactive) {
     const actions = node("div", "work-actions");
-    if (targetSlug) {
-      const viewMatterBtn = node(
-        "button", "secondary-button", targetFile ? "Review file" : "View Matter & Files"
-      );
-      viewMatterBtn.type = "button";
-      viewMatterBtn.addEventListener("click", (e) => {
+
+    const addressBtn = node(
+      "button", "secondary-button", targetFile ? "Review File" : (targetSlug ? "View Matter & Files" : "Address Request")
+    );
+    addressBtn.type = "button";
+    addressBtn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      openMatterFromWorkItem(targetSlug, item.matter || titleText, targetFile);
+    });
+    actions.append(addressBtn);
+
+    if (item.kind === "completion_review" || item.kind === "stale_work" || item.blocker) {
+      const requeueBtn = node("button", "secondary-button", "Requeue Task");
+      requeueBtn.type = "button";
+      requeueBtn.title = "Re-assign task to Alix/Marley to resolve this blocker";
+      requeueBtn.addEventListener("click", async (e) => {
         e.stopPropagation();
-        openMatterFromWorkItem(targetSlug, item.matter, targetFile);
+        try {
+          const payload = await apiFetch("/api/quick_task", {
+            method: "POST",
+            body: JSON.stringify({
+              description: `Resolve blocker for ${item.title}. Blocker details: ${item.blocker || "Review required"}`,
+              assigned_agent: "Alix",
+              priority: "HIGH",
+            }),
+          });
+          toast(payload.message || "Requeued task for Alix.");
+          await updateWorkItem(item, "complete");
+        } catch (err) {
+          toast(err.message, true);
+        }
       });
-      actions.append(viewMatterBtn);
+      actions.append(requeueBtn);
     }
+
     if (item.can_complete) {
       const complete = node("button", "primary-button", "Done");
       complete.type = "button";
