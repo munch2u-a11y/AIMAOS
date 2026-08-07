@@ -75,6 +75,8 @@ class LocalCalendar:
         source_task_id: str | None = None,
         blocker: str | None = None,
         next_action: str | None = None,
+        audit_reason: str | None = None,
+        self_repair_status: str | None = None,
     ) -> tuple[dict, bool]:
         key = _clean_text(event_key, limit=240)
         if not key:
@@ -108,9 +110,11 @@ class LocalCalendar:
                 "client_name": _clean_text(client_name, limit=120, fallback="General"),
                 "priority": priority if priority in {"CRITICAL", "HIGH", "NORMAL", "BACKGROUND"} else "NORMAL",
                 "kind": _clean_text(kind, limit=60, fallback="event"),
-                "source_task_id": _clean_text(source_task_id, limit=100) or None,
-                "blocker": _clean_text(blocker, limit=500) or None,
-                "next_action": _clean_text(next_action, limit=500) or None,
+                "source_task_id": source_task_id,
+                "blocker": _clean_text(blocker, limit=500),
+                "next_action": _clean_text(next_action, limit=500),
+                "audit_reason": _clean_text(audit_reason, limit=500),
+                "self_repair_status": _clean_text(self_repair_status, limit=500),
                 "updated_at": now,
             })
             return dict(existing), created

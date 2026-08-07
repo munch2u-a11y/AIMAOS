@@ -238,20 +238,113 @@ async function openMatterFromWorkItem(slug, matterName, filePath = null) {
   }
 }
 
+function openIssueResolutionModal(item) {
+  const dlg = $("#issue-resolution-dialog");
+  if (!dlg) return;
+
+  $("#issue-dialog-title").textContent = item.title || "Issue Resolution & Self-Repair";
+  const body = $("#issue-dialog-body");
+  const actions = $("#issue-dialog-actions");
+  body.replaceChildren();
+  actions.replaceChildren();
+
+  const reviewTarget = item.review_target || {};
+  const targetSlug = reviewTarget.client_slug || item.client_slug || findCaseSlug(item.matter) || findCaseSlug(item.title);
+  const targetFile = reviewTarget.file_path || null;
+
+  const auditCard = node("div", "audit-explanation-box");
+  const header = node("div", "audit-explanation-header");
+  header.append(node("span", "status-tag urgent", "Audit Notice"));
+  if (item.self_repair_status) {
+    header.append(node("span", "status-tag success", "Self-Repair Active"));
+  }
+  auditCard.append(header);
+
+  const auditReason = item.audit_reason || "Model reported completion in conversation, but no verified document file was produced on disk.";
+  auditCard.append(node("p", "audit-reason-text", auditReason));
+  if (item.blocker) {
+    const blockerP = node("p", "work-explanation");
+    blockerP.append(node("strong", "", "Blocker Cause: "), document.createTextNode(item.blocker));
+    auditCard.append(blockerP);
+  }
+  if (item.self_repair_status) {
+    auditCard.append(node("p", "audit-repair-text", item.self_repair_status));
+  }
+  body.append(auditCard);
+
+  const contextBox = node("div", "agent-form-instructions");
+  const matterName = item.matter || targetSlug || "General Office";
+  contextBox.append(node("strong", "", `Matter Context: ${matterName}`));
+  if (targetFile) {
+    contextBox.append(node("p", "", `Target File: ${targetFile}`));
+  }
+  body.append(contextBox);
+
+  const closeBtn = node("button", "secondary-button", "Close");
+  closeBtn.type = "button";
+  closeBtn.addEventListener("click", () => dlg.close());
+
+  const requeueBtn = node("button", "primary-button", "Requeue & Repair Task");
+  requeueBtn.type = "button";
+  requeueBtn.title = "Re-assign task to Alix to produce verified document artifact";
+  requeueBtn.addEventListener("click", async () => {
+    try {
+      const payload = await apiFetch("/api/quick_task", {
+        method: "POST",
+        body: JSON.stringify({
+          description: `Resolve blocker for ${item.title}. Blocker details: ${item.blocker || "Review required"}`,
+          assigned_agent: "Alix",
+          priority: "HIGH",
+        }),
+      });
+      toast(payload.message || "Requeued task for Alix.");
+      await updateWorkItem(item, "complete");
+      dlg.close();
+    } catch (err) {
+      toast(err.message, true);
+    }
+  });
+
+  const viewWorkstationBtn = node("button", "secondary-button", targetFile ? "Review File in Studio" : "Open Matter Files");
+  viewWorkstationBtn.type = "button";
+  viewWorkstationBtn.addEventListener("click", () => {
+    dlg.close();
+    openMatterFromWorkItem(targetSlug, item.matter || item.title, targetFile);
+  });
+
+  const completeBtn = node("button", "secondary-button", "Mark Resolved");
+  completeBtn.type = "button";
+  completeBtn.addEventListener("click", async () => {
+    await updateWorkItem(item, "complete");
+    dlg.close();
+  });
+
+  actions.append(viewWorkstationBtn, requeueBtn, completeBtn, closeBtn);
+  $("#issue-dialog-close").onclick = () => dlg.close();
+
+  if (typeof dlg.showModal === "function") dlg.showModal();
+}
+
 function workstationRow(item, interactive = true) {
   const reviewTarget = item.review_target || {};
   const targetSlug = reviewTarget.client_slug || item.client_slug || findCaseSlug(item.matter) || findCaseSlug(item.title);
   const targetFile = reviewTarget.file_path || null;
+  const isReviewItem = item.kind === "completion_review" || item.kind === "stale_work" || Boolean(item.blocker);
+
   const row = node("article", `work-item priority-${String(item.priority || "normal").toLowerCase()}${item.overdue ? " overdue" : ""} clickable-item`);
   const copy = node("div", "work-copy");
 
   const titleText = item.title || "Untitled work item";
   const titleBtn = node("button", "work-title-link", titleText);
   titleBtn.type = "button";
-  titleBtn.title = `Click to address work item: ${item.matter || titleText}`;
+  titleBtn.title = isReviewItem ? "Click to open interactive issue resolution modal" : `Click to address work item: ${item.matter || titleText}`;
   titleBtn.addEventListener("click", (e) => {
     e.stopPropagation();
-    openMatterFromWorkItem(targetSlug, item.matter || titleText, targetFile);
+    if (isReviewItem) {
+      openIssueResolutionModal(item);
+    } else {
+      openMatterFromWorkItem(targetSlug, item.matter || titleText, targetFile);
+    }
   });
   copy.append(titleBtn);
 
@@ -275,10 +368,10 @@ function workstationRow(item, interactive = true) {
   if (item.blocker) {
     const blocker = node("p", "work-explanation clickable-text");
     blocker.append(node("strong", "", "Blocked: "), document.createTextNode(item.blocker));
-    blocker.title = "Click to address this blocker";
+    blocker.title = "Click to open interactive issue resolution modal";
     blocker.addEventListener("click", (e) => {
       e.stopPropagation();
-      openMatterFromWorkItem(targetSlug, item.matter || titleText, targetFile);
+      openIssueResolutionModal(item);
     });
     copy.append(blocker);
   }
@@ -286,6 +379,23 @@ function workstationRow(item, interactive = true) {
     const next = node("p", "work-explanation");
     next.append(node("strong", "", "Next: "), document.createTextNode(item.next_action));
     copy.append(next);
+  }
+
+  if (item.audit_reason || item.kind === "completion_review") {
+    const auditBox = node("div", "audit-explanation-box");
+    const header = node("div", "audit-explanation-header");
+    header.append(node("span", "status-tag urgent", "Audit Notice"));
+    if (item.self_repair_status) {
+      header.append(node("span", "status-tag success", "Self-Repair Active"));
+    }
+    auditBox.append(header);
+
+    const reasonText = item.audit_reason || "Model stated completion in conversation, but no verified document file was produced on disk.";
+    auditBox.append(node("p", "audit-reason-text", reasonText));
+    if (item.self_repair_status) {
+      auditBox.append(node("p", "audit-repair-text", item.self_repair_status));
+    }
+    copy.append(auditBox);
   }
 
   if (item.interactive_form) {

@@ -276,8 +276,42 @@ def run_daily_advancement_review(
                         continue
                     source_details = _task_details(completed_task)
                     client = _clean(source_details.get("client_name"), 120) or "General"
-                    title = f"Manager review: {_clean(completed_task.get('title'), 140)}"
+                    source_title = _clean(completed_task.get('title'), 140)
+
+                    # Autonomous Self-Repair: Requeue task for Alix if not previously attempted
+                    attempts = int(source_details.get("self_repair_attempts", 0))
+                    repair_task_id = None
+                    if attempts < 1:
+                        source_details["self_repair_attempts"] = 1
+                        repair_task_id = f"task_repair_{hashlib.sha256(key.encode('utf-8')).hexdigest()[:16]}"
+                        repair_task = {
+                            "id": repair_task_id,
+                            "title": f"[Self-Repair] Retry document task: {source_title}",
+                            "requester": "Marley (Self-Repair)",
+                            "assigned_agent": "Alix",
+                            "priority": "HIGH",
+                            "status": "queued",
+                            "created_at": now.isoformat(),
+                            "details": {
+                                "client_name": None if client == "General" else client,
+                                "source_task_id": source_id,
+                                "work_type": "self_repair",
+                                "auto_requeued": True,
+                                "instruction": "Verify and produce physical file artifact on disk before completing.",
+                            },
+                        }
+                        active.append(repair_task)
+                        report["self_repairs_triggered"] = report.get("self_repairs_triggered", 0) + 1
+                        board._append_activity(
+                            payload,
+                            f"[Self-Repair] Marley detected unconfirmed work in task '{source_title}' and automatically re-dispatched it to Alix."
+                        )
+
+                    title = f"Manager review: {source_title}"
                     task_id = "task_workflow_" + hashlib.sha256(key.encode("utf-8")).hexdigest()[:20]
+                    audit_reason = "Model stated completion in conversation, but no verified document file was produced on disk."
+                    self_repair_status = f"Self-repair active: Requeued remediation task for Alix ({repair_task_id})." if repair_task_id else "Self-repair attempted; manager review required."
+
                     follow_up = {
                         "id": task_id,
                         "title": title,
@@ -294,8 +328,10 @@ def run_daily_advancement_review(
                             "due_date": today,
                             "review_key": key,
                             "source_task_id": source_id,
+                            "audit_reason": audit_reason,
+                            "self_repair_status": self_repair_status,
                             "blocker": "The agent marked the source task completed but reported unconfirmed or failed work.",
-                            "next_action": "Review the source result, correct its scope or inputs, and decide whether to requeue it.",
+                            "next_action": f"{self_repair_status} You can review the matter or click Requeue Task to override.",
                         },
                     }
                     active.append(follow_up)
@@ -309,6 +345,8 @@ def run_daily_advancement_review(
                         "priority": "HIGH",
                         "kind": "completion_review",
                         "source_task_id": task_id,
+                        "audit_reason": audit_reason,
+                        "self_repair_status": self_repair_status,
                         "blocker": follow_up["details"]["blocker"],
                         "next_action": follow_up["details"]["next_action"],
                     })
@@ -489,8 +527,10 @@ def build_workstation_items(
             "status": task.get("status", "queued"),
             "due_date": due,
             "overdue": bool(due_value and due_value < today and task.get("status") != "completed"),
-            "blocker": _clean(details.get("blocker"), 500) or None,
-            "next_action": _clean(details.get("next_action"), 500) or None,
+            "blocker": _clean(target_details.get("blocker"), 500) or None,
+            "next_action": _clean(target_details.get("next_action"), 500) or None,
+            "audit_reason": _clean(target_details.get("audit_reason"), 500) or None,
+            "self_repair_status": _clean(target_details.get("self_repair_status"), 500) or None,
             "requires_human": requires_human,
             "can_complete": requires_human and task.get("status") == "waiting_on_human",
             "can_snooze": requires_human and task.get("status") == "waiting_on_human",
@@ -524,6 +564,8 @@ def build_workstation_items(
             "overdue": bool(due_value and due_value < today),
             "blocker": _clean(event.get("blocker"), 500) or None,
             "next_action": _clean(event.get("next_action"), 500) or None,
+            "audit_reason": _clean(event.get("audit_reason"), 500) or None,
+            "self_repair_status": _clean(event.get("self_repair_status"), 500) or None,
             "requires_human": event.get("kind") in {"human_follow_up", "completion_review"},
             "can_complete": False,
             "can_snooze": False,

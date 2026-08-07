@@ -636,11 +636,25 @@
       <p id="reset-pw-user-label" class="form-help">Resetting password for team member.</p>
       <input type="hidden" id="reset-pw-target-id">
       <label>New Password<input id="reset-pw-new-password" type="password" placeholder="Minimum 4 characters" required autocomplete="off"></label>
-      <div class="form-actions" style="display: flex; gap: 0.5rem; justify-content: flex-end; margin-top: 1rem;">
         <button id="reset-pw-cancel" class="secondary-button" type="button">Cancel</button>
         <button class="primary-button" type="submit">Reset Password</button>
       </div>
     </form>
+  </dialog>
+
+  <dialog id="issue-resolution-dialog" aria-labelledby="issue-dialog-title">
+    <div class="dialog-card broad-dialog">
+      <div class="dialog-header">
+        <h2 id="issue-dialog-title">Issue Resolution & Self-Repair</h2>
+        <button id="issue-dialog-close" class="icon-button mini" type="button" title="Close">&times;</button>
+      </div>
+      <div id="issue-dialog-body" class="dialog-body" style="display: flex; flex-direction: column; gap: 0.85rem; padding: 0.5rem 0;">
+        <!-- Dynamically rendered -->
+      </div>
+      <div id="issue-dialog-actions" class="dialog-actions" style="display: flex; gap: 0.5rem; justify-content: flex-end; flex-wrap: wrap; border-top: 1px solid var(--line); padding-top: 0.85rem;">
+        <!-- Dynamically rendered -->
+      </div>
+    </div>
   </dialog>
 
   <dialog id="auth-dialog" aria-labelledby="auth-title">

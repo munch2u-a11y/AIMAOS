@@ -731,3 +731,32 @@ dialog::backdrop { background: rgba(13, 22, 33, .58); }
   flex-direction: column;
   gap: 0.6rem;
 }
+
+/* Audit & Self-Repair Explanation Box */
+.audit-explanation-box {
+  margin-top: 0.85rem;
+  padding: 0.85rem 1rem;
+  border-radius: 8px;
+  background: rgba(245, 158, 11, 0.06);
+  border: 1px solid rgba(245, 158, 11, 0.25);
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+.audit-explanation-header {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+.audit-reason-text {
+  margin: 0;
+  font-size: 0.85rem;
+  color: var(--text-primary);
+  font-weight: 500;
+}
+.audit-repair-text {
+  margin: 0;
+  font-size: 0.8rem;
+  color: var(--brand);
+  font-weight: 600;
+}

@@ -27,8 +27,10 @@ class OfficeBoard:
     otherwise two agents holding stale in-memory copies overwrite each other's
     tasks (last-writer-wins data loss).
     """
-    def __init__(self):
-        os.makedirs(os.path.dirname(OFFICE_BOARD_FILE), exist_ok=True)
+    def __init__(self, board_file: str | None = None):
+        self.board_file = board_file or OFFICE_BOARD_FILE
+        self.board_lock = self.board_file + ".lock"
+        os.makedirs(os.path.dirname(self.board_file), exist_ok=True)
         self.board = self._load_board()
 
     def _default_board(self):
@@ -48,9 +50,9 @@ class OfficeBoard:
         }
 
     def _load_board(self):
-        if os.path.exists(OFFICE_BOARD_FILE):
+        if os.path.exists(self.board_file):
             try:
-                with open(OFFICE_BOARD_FILE, "r") as f:
+                with open(self.board_file, "r") as f:
                     return json.load(f)
             except Exception:
                 pass
@@ -63,7 +65,7 @@ class OfficeBoard:
         retained during the beta for compatibility with existing agents, but
         database sync failures are logged instead of silently hidden.
         """
-        with open(OFFICE_BOARD_LOCK, "a+") as lock_f:
+        with open(self.board_lock, "a+") as lock_f:
             fcntl.flock(lock_f, fcntl.LOCK_EX)
             try:
                 self.board = self._load_board()
@@ -87,7 +89,7 @@ class OfficeBoard:
                     self.board["completed_tasks"] = completed[-500:]
                 except Exception as exc:
                     logger.warning("Could not prune Office Board history: %s", exc)
-                atomic_write_json(OFFICE_BOARD_FILE, self.board)
+                atomic_write_json(self.board_file, self.board)
                 try:
                     from core.db.office_sqlite import OfficeSQLite
                     db = OfficeSQLite()
