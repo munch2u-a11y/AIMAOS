@@ -649,7 +649,12 @@ function isReviewableFile(path) {
 }
 
 function selectReviewLine(lineNumber) {
-  state.selectedReviewLine = Number(lineNumber);
+  const lineCount = (state.reviewDocument?.lines || []).length;
+  let targetNum = Number(lineNumber);
+  if (!targetNum || targetNum < 1) {
+    targetNum = lineCount > 0 ? 1 : 0;
+  }
+  state.selectedReviewLine = targetNum;
   $$(".document-line").forEach((line) => {
     const selected = Number(line.dataset.lineNumber) === state.selectedReviewLine;
     line.classList.toggle("selected", selected);
@@ -684,6 +689,9 @@ async function updateReviewNote(noteId, action) {
     });
     toast(payload.message);
     await openDocumentReview(review.slug, review.file.path, { preserveSelection: true });
+    if ($("#view-documents") && !$("#view-documents").hidden) {
+      await loadDocumentsCatalog();
+    }
   } catch (error) {
     toast(error.message, true);
   }
@@ -844,7 +852,8 @@ async function openDocumentReview(slug, path, options = {}) {
       `/api/document_review?slug=${encodeURIComponent(slug)}&path=${encodeURIComponent(path)}`
     );
     state.reviewDocument = { ...payload, slug };
-    state.selectedReviewLine = selected;
+    const availableLines = (payload.lines || []).length;
+    state.selectedReviewLine = selected || (availableLines > 0 ? 1 : 0);
     renderDocumentReview();
     const dialog = $("#document-review-dialog");
     if (!dialog.open) dialog.showModal();
@@ -856,12 +865,26 @@ async function openDocumentReview(slug, path, options = {}) {
 async function saveReviewNote(event) {
   event.preventDefault();
   const review = state.reviewDocument;
-  if (!review || !state.selectedReviewLine) {
+  if (!review) return;
+
+  if (!state.selectedReviewLine && (review.lines || []).length > 0) {
+    selectReviewLine(1);
+  }
+
+  if (!state.selectedReviewLine) {
     toast("Choose a document line before adding a note.", true);
     return;
   }
-  const submitter = event.submitter || event.currentTarget.querySelector('button[type="submit"]');
-  submitter.disabled = true;
+
+  const commentVal = ($("#document-review-comment")?.value || "").trim();
+  if (!commentVal) {
+    toast("Please enter your note before saving.", true);
+    return;
+  }
+
+  const submitter = event.submitter || event.currentTarget?.querySelector?.('button[type="submit"]');
+  if (submitter) submitter.disabled = true;
+
   try {
     const payload = await apiFetch("/api/document_review_note", {
       method: "POST",
@@ -869,33 +892,45 @@ async function saveReviewNote(event) {
         slug: review.slug,
         path: review.file.path,
         line_number: state.selectedReviewLine,
-        kind: $("#document-review-kind").value,
-        comment: $("#document-review-comment").value,
+        kind: $("#document-review-kind")?.value || "correction",
+        comment: commentVal,
         action: "create",
       }),
     });
     $("#document-review-comment").value = "";
     toast(payload.message);
     await openDocumentReview(review.slug, review.file.path, { preserveSelection: true });
+    if ($("#view-documents") && !$("#view-documents").hidden) {
+      await loadDocumentsCatalog();
+    }
   } catch (error) {
     toast(error.message, true);
   } finally {
-    submitter.disabled = false;
+    if (submitter) submitter.disabled = false;
   }
 }
 
 async function submitDocumentFeedback() {
   const review = state.reviewDocument;
   if (!review) return;
+  const submitButton = $("#document-review-submit");
+  if (submitButton) submitButton.disabled = true;
   try {
     const payload = await apiFetch("/api/document_review_submit", {
       method: "POST",
       body: JSON.stringify({ slug: review.slug, path: review.file.path }),
     });
     toast(payload.message);
+    await openDocumentReview(review.slug, review.file.path, { preserveSelection: true });
     await loadStatus();
+    if ($("#view-documents") && !$("#view-documents").hidden) {
+      await loadDocumentsCatalog();
+    }
   } catch (error) {
     toast(error.message, true);
+  } finally {
+    const openCount = (state.reviewDocument?.notes || []).filter((note) => note.status !== "resolved").length;
+    if (submitButton) submitButton.disabled = openCount === 0;
   }
 }
 
