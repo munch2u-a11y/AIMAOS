@@ -167,3 +167,20 @@ class DocumentReviewStore:
             return {**note, "file_path": rel_path}
 
         return self._mutate(mutate)
+
+
+def format_agent_review_prompt(case_dir: str, rel_path: str, line_number: int | None = None) -> str:
+    """Format an agent-readable summary of review notes for a specific document and optional line."""
+    store = DocumentReviewStore(case_dir)
+    notes = store.list_notes(rel_path, include_resolved=False)
+    if line_number is not None:
+        notes = [n for n in notes if n.get("line_number") == line_number]
+
+    if not notes:
+        return f"No open review notes for document '{rel_path}'."
+
+    lines = [f"Open review notes for '{rel_path}':"]
+    for n in notes:
+        lines.append(f"- Line {n.get('line_number')} [{n.get('kind')}]: \"{n.get('line_text')}\"")
+        lines.append(f"  Comment: {n.get('comment')}")
+    return "\n".join(lines)

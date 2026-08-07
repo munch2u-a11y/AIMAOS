@@ -40,8 +40,14 @@
       <button class="nav-button" type="button" data-view-target="agenda" aria-controls="view-agenda">
         <span aria-hidden="true">☷</span> Agenda
       </button>
+      <button class="nav-button" type="button" data-view-target="requests" aria-controls="view-requests">
+        <span aria-hidden="true">📋</span> Requests
+      </button>
       <button class="nav-button" type="button" data-view-target="matters" aria-controls="view-matters">
         <span aria-hidden="true">▣</span> Matters
+      </button>
+      <button class="nav-button" type="button" data-view-target="documents" aria-controls="view-documents">
+        <span aria-hidden="true">📄</span> Documents
       </button>
       <button class="nav-button" type="button" data-view-target="create" aria-controls="view-create">
         <span aria-hidden="true">＋</span> Create
@@ -59,6 +65,7 @@
     </nav>
 
     <main id="main-content" tabindex="-1">
+      <div id="agent-banner-container" class="agent-banner-stack" aria-live="polite"></div>
       <section id="setup-banner" class="setup-banner" role="alert" hidden>
         <div>
           <strong>Finish local setup before starting office work</strong>
@@ -156,6 +163,70 @@
           </div>
           <div id="agenda-work-list" class="stack-list agenda-list" aria-live="polite"></div>
         </section>
+      </section>
+
+      <section id="view-requests" class="view" aria-labelledby="requests-title" hidden>
+        <div class="page-heading compact">
+          <div>
+            <p class="eyebrow">Agent Workspace</p>
+            <h1 id="requests-title">Agent Requests &amp; Fillable Forms</h1>
+            <p>Interactive forms, surveys, and parameter requests created directly by Alix, Finn, Kai, Zoe, and Marley.</p>
+          </div>
+          <button class="primary-button" type="button" data-quick-action="review_blockers">Refresh requests</button>
+        </div>
+        <section class="panel" aria-labelledby="requests-list-title">
+          <div class="panel-heading">
+            <div>
+              <p class="eyebrow">Pending Input</p>
+              <h2 id="requests-list-title">Action Required</h2>
+            </div>
+            <span class="draft-pill">Interactive</span>
+          </div>
+          <div id="requests-work-list" class="stack-list requests-list" aria-live="polite"></div>
+        </section>
+      </section>
+
+      <section id="view-documents" class="view" aria-labelledby="documents-title" hidden>
+        <div class="page-heading compact">
+          <div>
+            <p class="eyebrow">Office Library</p>
+            <h1 id="documents-title">Document Display &amp; Reader</h1>
+            <p>Pull up any matter file to read, annotate specific lines for agents, or review together.</p>
+          </div>
+          <button id="documents-refresh-button" class="secondary-button" type="button">Refresh catalog</button>
+        </div>
+        <div class="documents-layout">
+          <aside class="panel documents-sidebar" aria-labelledby="documents-catalog-title">
+            <div class="panel-heading">
+              <div>
+                <p class="eyebrow">Files</p>
+                <h2 id="documents-catalog-title">All Matter Documents</h2>
+              </div>
+            </div>
+            <label class="search-field">
+              <span class="sr-only">Filter documents</span>
+              <input id="documents-search" type="search" placeholder="Filter files by name or matter">
+            </label>
+            <div id="documents-catalog-list" class="documents-catalog-list"></div>
+          </aside>
+          <section class="panel documents-viewer-panel" aria-labelledby="documents-viewer-title">
+            <div class="panel-heading">
+              <div>
+                <p class="eyebrow">Document Reader</p>
+                <h2 id="documents-viewer-title">Select a document to read</h2>
+              </div>
+              <div id="documents-viewer-actions" hidden>
+                <button id="documents-viewer-dialog-btn" class="primary-button mini" type="button">Open Full Reviewer</button>
+              </div>
+            </div>
+            <div id="documents-viewer-body" class="documents-viewer-body">
+              <div class="empty-state">
+                <strong>No document selected</strong>
+                <p>Choose a document from the left catalog to read lines and add agent notes.</p>
+              </div>
+            </div>
+          </section>
+        </div>
       </section>
 
       <section id="view-matters" class="view" aria-labelledby="matters-title" hidden>

@@ -5,6 +5,7 @@ const state = {
   bootstrap: null,
   cases: [],
   templates: [],
+  documentsCatalog: [],
   selectedMatter: null,
   reviewDocument: null,
   selectedReviewLine: null,
@@ -72,6 +73,9 @@ function showView(viewName) {
     if (active) button.setAttribute("aria-current", "page");
     else button.removeAttribute("aria-current");
   });
+  if (viewName === "documents") {
+    loadDocumentsCatalog();
+  }
   $("#main-content").focus({ preventScroll: true });
 }
 
@@ -80,6 +84,8 @@ function bindNavigation() {
     button.addEventListener("click", () => showView(button.dataset.viewTarget));
   });
   $("#btn-toggle-daemon")?.addEventListener("click", toggleDaemonPause);
+  $("#documents-refresh-button")?.addEventListener("click", loadDocumentsCatalog);
+  $("#documents-search")?.addEventListener("input", renderDocumentsCatalog);
 }
 
 
@@ -267,11 +273,21 @@ function workstationRow(item, interactive = true) {
       });
     }
     copy.append(blocker);
-  }
+    }
   if (item.next_action) {
     const next = node("p", "work-explanation");
     next.append(node("strong", "", "Next: "), document.createTextNode(item.next_action));
     copy.append(next);
+  }
+
+  if (item.interactive_form) {
+    const formCard = renderInteractiveForm(item.interactive_form, item.id);
+    if (formCard) copy.append(formCard);
+  }
+  if (item.user_responses) {
+    const respSummary = node("div", "work-user-responses");
+    respSummary.append(node("span", "status-tag success", "Responses Submitted"));
+    copy.append(respSummary);
   }
 
   const side = node("div", "work-side");
@@ -317,6 +333,203 @@ function workstationRow(item, interactive = true) {
   return row;
 }
 
+function renderAlertBanners(workItems) {
+  const container = $("#agent-banner-container");
+  if (!container) return;
+  container.replaceChildren();
+  const banners = [];
+  (workItems || []).forEach((item) => {
+    if (item.alert_banner) {
+      banners.push({ ...item.alert_banner, matter: item.matter, client_slug: item.client_slug });
+    }
+  });
+  if (!banners.length) return;
+
+  banners.forEach((banner) => {
+    const bannerEl = node("aside", `agent-banner ${banner.level || "warning"}`);
+    bannerEl.setAttribute("role", "alert");
+
+    const iconStr = banner.level === "urgent" ? "🚨" : banner.level === "warning" ? "⚠️" : "ℹ️";
+    const icon = node("span", "agent-banner-icon", iconStr);
+    const body = node("div", "agent-banner-body");
+    body.append(node("strong", "agent-banner-title", banner.title || "Agent Alert"));
+    if (banner.message) body.append(node("p", "agent-banner-message", banner.message));
+
+    const actions = node("div", "agent-banner-actions");
+    if (banner.action_label) {
+      const actBtn = node("button", "primary-button mini", banner.action_label);
+      actBtn.type = "button";
+      actBtn.addEventListener("click", () => {
+        if (banner.action_target) showView(banner.action_target);
+        else if (banner.client_slug) openMatterFromWorkItem(banner.client_slug, banner.matter);
+        else showView("requests");
+      });
+      actions.append(actBtn);
+    }
+    const dismissBtn = node("button", "icon-button mini", "✕");
+    dismissBtn.type = "button";
+    dismissBtn.title = "Dismiss alert";
+    dismissBtn.addEventListener("click", () => bannerEl.remove());
+    actions.append(dismissBtn);
+
+    bannerEl.append(icon, body, actions);
+    container.append(bannerEl);
+  });
+}
+
+function renderInteractiveForm(formSpec, taskId) {
+  if (!formSpec || !formSpec.fields || !formSpec.fields.length) return null;
+  const card = node("div", "agent-form-card");
+
+  const header = node("div", "agent-form-header");
+  header.append(
+    node("span", "agent-form-pill", "Agent Request"),
+    node("h4", "agent-form-title", formSpec.title || "Required Information")
+  );
+  card.append(header);
+
+  if (formSpec.instructions) {
+    card.append(node("p", "agent-form-instructions", formSpec.instructions));
+  }
+
+  const form = node("form", "agent-form-body");
+  form.dataset.taskId = taskId;
+
+  formSpec.fields.forEach((field) => {
+    const fieldGroup = node("div", "agent-field-group");
+    const fieldId = `form-field-${taskId}-${field.id}`;
+    const labelEl = node("label", "agent-field-label");
+    labelEl.htmlFor = fieldId;
+    labelEl.append(document.createTextNode(field.label));
+    if (field.required) {
+      labelEl.append(node("span", "required-star", " *"));
+    }
+    fieldGroup.append(labelEl);
+
+    if (field.description) {
+      fieldGroup.append(node("small", "agent-field-desc", field.description));
+    }
+
+    let inputEl;
+    if (field.type === "textarea") {
+      inputEl = node("textarea", "agent-input agent-textarea");
+      inputEl.id = fieldId;
+      inputEl.name = field.id;
+      if (field.placeholder) inputEl.placeholder = field.placeholder;
+      if (field.default_value) inputEl.value = field.default_value;
+      if (field.required) inputEl.required = true;
+      fieldGroup.append(inputEl);
+    } else if (field.type === "select") {
+      inputEl = node("select", "agent-input agent-select");
+      inputEl.id = fieldId;
+      inputEl.name = field.id;
+      if (field.required) inputEl.required = true;
+      inputEl.add(new Option(field.placeholder || "-- Select an option --", ""));
+      (field.options || []).forEach((opt) => {
+        inputEl.add(new Option(opt.label, opt.value));
+      });
+      if (field.default_value) inputEl.value = field.default_value;
+      fieldGroup.append(inputEl);
+    } else if (field.type === "checkbox") {
+      const checkWrapper = node("div", "agent-checkbox-wrapper");
+      if (field.options && field.options.length) {
+        field.options.forEach((opt) => {
+          const checkLbl = node("label", "checkbox-item-label");
+          const chk = node("input", "agent-checkbox");
+          chk.type = "checkbox";
+          chk.name = field.id;
+          chk.value = opt.value;
+          checkLbl.append(chk, document.createTextNode(` ${opt.label}`));
+          checkWrapper.append(checkLbl);
+        });
+      } else {
+        inputEl = node("input", "agent-checkbox");
+        inputEl.type = "checkbox";
+        inputEl.id = fieldId;
+        inputEl.name = field.id;
+        inputEl.value = "true";
+        const singleLbl = node("label", "checkbox-item-label");
+        singleLbl.htmlFor = fieldId;
+        singleLbl.append(inputEl, document.createTextNode(` ${field.label}`));
+        checkWrapper.append(singleLbl);
+      }
+      fieldGroup.append(checkWrapper);
+    } else {
+      inputEl = node("input", "agent-input");
+      inputEl.type = field.type === "date" ? "date" : field.type === "file" ? "file" : "text";
+      inputEl.id = fieldId;
+      inputEl.name = field.id;
+      if (field.placeholder) inputEl.placeholder = field.placeholder;
+      if (field.default_value) inputEl.value = field.default_value;
+      if (field.required) inputEl.required = true;
+      fieldGroup.append(inputEl);
+    }
+
+    form.append(fieldGroup);
+  });
+
+  const actions = node("div", "agent-form-actions");
+  const submitBtn = node("button", "primary-button", formSpec.submit_label || "Submit to Agent");
+  submitBtn.type = "submit";
+  actions.append(submitBtn);
+  form.append(actions);
+
+  form.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    await submitAgentForm(taskId, form, submitBtn);
+  });
+
+  card.append(form);
+  return card;
+}
+
+async function submitAgentForm(taskId, formElement, submitBtn) {
+  const formData = new FormData(formElement);
+  const responses = {};
+  for (const [key, value] of formData.entries()) {
+    if (responses[key] !== undefined) {
+      if (Array.isArray(responses[key])) {
+        responses[key].push(value);
+      } else {
+        responses[key] = [responses[key], value];
+      }
+    } else {
+      responses[key] = value;
+    }
+  }
+
+  submitBtn.disabled = true;
+  submitBtn.textContent = "Submitting…";
+
+  try {
+    const payload = await apiFetch("/api/agenda/respond", {
+      method: "POST",
+      body: JSON.stringify({ task_id: taskId, responses }),
+    });
+    toast(payload.message || "Form responses submitted successfully!");
+    await loadStatus();
+  } catch (error) {
+    toast(error.message, true);
+    submitBtn.disabled = false;
+    submitBtn.textContent = "Submit to Agent";
+  }
+}
+
+function renderRequests() {
+  const container = $("#requests-work-list");
+  if (!container) return;
+  container.replaceChildren();
+  const allItems = state.status?.work_items || [];
+  const requestItems = allItems.filter((item) => item.interactive_form || item.requires_human);
+  if (!requestItems.length) {
+    const empty = node("div", "empty-state");
+    empty.append(node("strong", "", "No pending agent requests"), node("p", "", "When Alix, Finn, Kai, Zoe, or Marley need information or approvals, fillable forms will appear here."));
+    container.append(empty);
+    return;
+  }
+  requestItems.forEach((item) => container.append(workstationRow(item)));
+}
 
 function jobRow(job) {
   return workstationRow({
@@ -375,6 +588,8 @@ async function loadStatus() {
     renderHealth();
     renderWork();
     renderAgenda();
+    renderRequests();
+    renderAlertBanners(state.status?.work_items || []);
   } catch (error) {
     if (error.message !== "Authentication required") {
       $("#health-dot").className = "status-dot warn";
@@ -439,12 +654,19 @@ function selectReviewLine(lineNumber) {
     const selected = Number(line.dataset.lineNumber) === state.selectedReviewLine;
     line.classList.toggle("selected", selected);
     line.setAttribute("aria-pressed", selected ? "true" : "false");
+    if (selected) {
+      line.scrollIntoView({ behavior: "smooth", block: "nearest" });
+    }
   });
   const line = (state.reviewDocument?.lines || []).find((item) => item.number === state.selectedReviewLine);
+  const textExcerpt = line?.text ? (line.text.length > 70 ? line.text.slice(0, 70) + "…" : line.text) : "(blank line)";
   $("#document-review-selection").textContent = line
-    ? `Line ${line.number}: ${line.text || "(blank line)"}`
+    ? `Line ${line.number}: "${textExcerpt}"`
     : "Choose a line in the document.";
-  if (line) $("#document-review-comment").focus();
+  if (line) {
+    const commentBox = $("#document-review-comment");
+    if (commentBox) commentBox.focus();
+  }
 }
 
 async function updateReviewNote(noteId, action) {
@@ -532,25 +754,87 @@ function renderDocumentReview() {
     lines.append(empty);
   } else {
     review.lines.forEach((line) => {
-      const button = node("button", "document-line");
-      button.type = "button";
-      button.dataset.lineNumber = String(line.number);
-      button.setAttribute("aria-pressed", "false");
-      button.append(
-        node("span", "document-line-number", line.number),
-        node("span", "document-line-text", line.text || " ")
-      );
+      const lineBtn = node("button", "document-line");
+      lineBtn.type = "button";
+      lineBtn.dataset.lineNumber = String(line.number);
+      lineBtn.setAttribute("aria-pressed", "false");
+
+      const numSpan = node("span", "document-line-number", line.number);
+      const textSpan = node("span", "document-line-text", line.text || " ");
+
+      const addNoteBtn = node("button", "document-line-add-note", "+ Add note");
+      addNoteBtn.type = "button";
+      addNoteBtn.title = `Add note for agent to line ${line.number}`;
+      addNoteBtn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        selectReviewLine(line.number);
+      });
+
+      lineBtn.append(numSpan, textSpan, addNoteBtn);
+
       const lineNotes = notesByLine.get(line.number) || [];
       if (lineNotes.length) {
-        button.classList.add("has-notes");
-        button.append(node("span", "line-note-count", lineNotes.length));
+        lineBtn.classList.add("has-notes");
+        lineBtn.append(node("span", "line-note-count", `${lineNotes.length} note${lineNotes.length > 1 ? "s" : ""}`));
       }
-      button.addEventListener("click", () => selectReviewLine(line.number));
-      lines.append(button);
+      lineBtn.addEventListener("click", () => selectReviewLine(line.number));
+      lines.append(lineBtn);
     });
   }
   renderReviewNotes();
   selectReviewLine(state.selectedReviewLine);
+
+  const viewerTitle = $("#documents-viewer-title");
+  if (viewerTitle) viewerTitle.textContent = `${review.file.name} (${review.slug})`;
+  const viewerActions = $("#documents-viewer-actions");
+  if (viewerActions) viewerActions.hidden = false;
+}
+
+async function loadDocumentsCatalog() {
+  try {
+    const payload = await apiFetch("/api/documents/list");
+    state.documentsCatalog = payload.documents || [];
+    renderDocumentsCatalog();
+  } catch (error) {
+    console.error("Failed to load documents catalog:", error);
+  }
+}
+
+function renderDocumentsCatalog() {
+  const container = $("#documents-catalog-list");
+  if (!container) return;
+  const query = ($("#documents-search")?.value || "").trim().toLowerCase();
+  container.replaceChildren();
+
+  const visible = (state.documentsCatalog || []).filter((doc) => {
+    const search = `${doc.file_name} ${doc.client_name} ${doc.relative_path}`.toLowerCase();
+    return !query || search.includes(query);
+  });
+
+  if (!visible.length) {
+    container.append(node("p", "form-help", state.documentsCatalog?.length ? "No matching files." : "No matter documents available."));
+    return;
+  }
+
+  visible.forEach((doc) => {
+    const card = node("div", "document-catalog-item");
+    const meta = node("div", "doc-cat-meta");
+    meta.append(node("strong", "doc-cat-name", doc.file_name), node("small", "doc-cat-matter", `${doc.client_name} · ${formatBytes(doc.size)}`));
+    card.append(meta);
+
+    if (doc.open_notes > 0) {
+      card.append(node("span", "draft-pill warning", `${doc.open_notes} note${doc.open_notes > 1 ? "s" : ""}`));
+    }
+
+    const readBtn = node("button", "primary-button mini", "Read & Note");
+    readBtn.type = "button";
+    readBtn.addEventListener("click", () => {
+      openDocumentReview(doc.client_slug, doc.relative_path);
+    });
+    card.append(readBtn);
+
+    container.append(card);
+  });
 }
 
 async function openDocumentReview(slug, path, options = {}) {

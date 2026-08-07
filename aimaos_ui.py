@@ -51,11 +51,13 @@ from core.db.office_sqlite import OfficeSQLite
 from core.document_review import DocumentReviewStore
 from core.document_text import extract_document_text, validate_upload_content
 from core.jobs import get_job_manager
+from core.agent_widgets import validate_widget_schema
 from core.workflow_review import (
     build_workstation_items,
     complete_human_task,
     run_daily_advancement_review,
     snooze_human_task,
+    submit_human_form_response,
 )
 from core.version import __version__
 from core.security import (
@@ -423,6 +425,48 @@ def _document_review_payload(case_dir: str, rel_path: str) -> dict:
     })
 
 
+def _documents_catalog_payload() -> list[dict]:
+    """Return a browser-safe catalog of reviewable files across all active matters."""
+    database = OfficeSQLite()
+    cases = database.list_all_cases()
+    catalog = []
+    for case in cases:
+        slug = str(case.get("client_slug", ""))
+        client_name = str(case.get("client_name", slug))
+        case_dir = str(case.get("path", ""))
+        if not os.path.isdir(case_dir):
+            continue
+        try:
+            store = DocumentReviewStore(case_dir)
+            notes = store.list_notes()
+            open_notes_by_path = {}
+            for note in notes:
+                fp = note.get("file_path", "")
+                if note.get("status") != "resolved":
+                    open_notes_by_path[fp] = open_notes_by_path.get(fp, 0) + 1
+
+            for root, _dirs, files in os.walk(case_dir):
+                for f in sorted(files):
+                    if f.startswith("."):
+                        continue
+                    full_path = os.path.join(root, f)
+                    rel_path = os.path.relpath(full_path, case_dir).replace(os.sep, "/")
+                    ext = os.path.splitext(f)[1].lower()
+                    if ext in REVIEWABLE_EXTENSIONS and not path_is_sensitive(full_path, root=case_dir):
+                        catalog.append({
+                            "client_slug": slug,
+                            "client_name": client_name,
+                            "relative_path": rel_path,
+                            "file_name": f,
+                            "size": os.path.getsize(full_path),
+                            "modified_at": datetime.fromtimestamp(os.path.getmtime(full_path)).isoformat(),
+                            "open_notes": open_notes_by_path.get(rel_path, 0),
+                        })
+        except Exception:
+            continue
+    return sorted(catalog, key=lambda d: (d["client_name"].lower(), d["file_name"].lower()))
+
+
 def _queue_document_feedback(
     *, case: dict, slug: str, case_dir: str, normalized_rel: str,
     board: OfficeBoard | None = None,
@@ -696,6 +740,12 @@ class AIMAOSUIHandler(SimpleHTTPRequestHandler):
                     **_document_review_payload(case_dir, rel_path),
                 })
 
+            if path == "/api/documents/list":
+                return self._send_json({
+                    "status": "success",
+                    "documents": _documents_catalog_payload(),
+                })
+
             if path == "/api/reports":
                 report_roots = [
                     os.path.join(AIMAOS_ROOT, "Zoe-AI", "workspace", "diagnostics"),
@@ -732,7 +782,8 @@ class AIMAOSUIHandler(SimpleHTTPRequestHandler):
             data = self._read_json()
             work_routes = {
                 "/api/chat", "/api/upload", "/api/generate_doc",
-                "/api/quick_action", "/api/work_item",
+                "/api/quick_action", "/api/work_item", "/api/agenda/respond",
+                "/api/agent/publish-widget",
                 "/api/document_review_note", "/api/document_review_submit",
                 "/api/daemon/pause", "/api/daemon/resume", "/api/daemon/toggle",
             }
@@ -956,6 +1007,67 @@ class AIMAOSUIHandler(SimpleHTTPRequestHandler):
                 else:
                     raise SecurityValidationError("Unknown work item action.")
                 return self._send_json({"status": "success", "message": message})
+
+            if path == "/api/agenda/respond":
+                task_id = str(data.get("task_id", "")).strip()
+                if not task_id or len(task_id) > 120 or not all(
+                    character.isalnum() or character in "_:-" for character in task_id
+                ):
+                    raise SecurityValidationError("Invalid task identifier.")
+
+                raw_responses = data.get("responses")
+                if not isinstance(raw_responses, dict):
+                    raise SecurityValidationError("Form responses must be a dictionary.")
+
+                sanitized_responses = {}
+                for key, val in list(raw_responses.items())[:50]:
+                    clean_key = str(key).strip()[:100]
+                    if not clean_key:
+                        continue
+                    if isinstance(val, list):
+                        sanitized_responses[clean_key] = [str(item).strip()[:1000] for item in val[:50]]
+                    elif val is not None:
+                        sanitized_responses[clean_key] = str(val).strip()[:5000]
+
+                try:
+                    updated_task = submit_human_form_response(task_id, sanitized_responses)
+                except ValueError as exc:
+                    raise SecurityValidationError(str(exc)) from exc
+
+                return self._send_json({
+                    "status": "success",
+                    "message": "Form responses submitted successfully. Task requeued for agent processing.",
+                    "task": updated_task,
+                })
+
+            if path == "/api/agent/publish-widget":
+                validated = validate_widget_schema(data)
+                if not validated:
+                    raise SecurityValidationError("No valid interactive_form or alert_banner provided.")
+
+                task_id = str(data.get("task_id", "")).strip()
+                if task_id:
+                    if len(task_id) > 120 or not all(c.isalnum() or c in "_:-" for c in task_id):
+                        raise SecurityValidationError("Invalid task identifier.")
+                    board = OfficeBoard()
+                    def mutate(payload):
+                        task = next((t for t in payload.get("active_tasks", []) if t.get("id") == task_id), None)
+                        if not task:
+                            raise ValueError(f"Task '{task_id}' not found.")
+                        details = task.setdefault("details", {})
+                        if "interactive_form" in validated:
+                            details["interactive_form"] = validated["interactive_form"]
+                            details["requires_human"] = True
+                            task["status"] = "waiting_on_human"
+                        if "alert_banner" in validated:
+                            details["alert_banner"] = validated["alert_banner"]
+                    board._locked_mutation(mutate)
+
+                return self._send_json({
+                    "status": "success",
+                    "message": "Agent UI widget published successfully.",
+                    "widgets": validated,
+                })
 
             if path == "/api/document_review_note":
                 slug = validate_slug(str(data.get("slug", "")), label="matter identifier")
