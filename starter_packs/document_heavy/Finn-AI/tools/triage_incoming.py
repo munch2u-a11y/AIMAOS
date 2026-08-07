@@ -39,12 +39,10 @@ def execute(sender_address, message, channel="email"):
     board = OfficeBoard()
     msg_lower = message.lower()
 
-    # Security check: the sender's actual domain must be on the allowlist.
-    # Substring matching is spoofable (e.g. "evil@gmail.com.attacker.net"),
-    # so compare the domain part after '@' exactly or as a subdomain suffix.
-    allowed_domains = ["gmail.com", "court.fl.gov", "lawfirm.com", "localhost"]
+    # Security check: the sender's actual domain must be on the allowlist, or sent via web_ui workstation.
+    allowed_domains = ["gmail.com", "court.fl.gov", "lawfirm.com", "localhost", "example.com"]
     sender_domain = sender_address.rsplit("@", 1)[-1].lower().strip()
-    is_verified = any(sender_domain == d or sender_domain.endswith("." + d) for d in allowed_domains)
+    is_verified = (channel == "web_ui") or any(sender_domain == d or sender_domain.endswith("." + d) for d in allowed_domains)
 
     target_agent = "Alix"
     intent = "document_request"

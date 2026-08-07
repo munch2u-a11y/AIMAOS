@@ -46,9 +46,9 @@ class FinnAgent(OfficeAgent):
             resp = self.llm.chat([
                 {"role": "system", "content": self.get_system_prompt(message)},
                 {"role": "user", "content":
-                    f"An office visitor ({sender}, via {channel}) just sent: '{message}'.\n"
+                    f"An office user ({sender}, via {channel}) just sent: '{message}'.\n"
                     f"Your triage tool already logged it: {triage_res}\n"
-                    "Reply to the visitor in 2-3 friendly professional sentences: "
+                    "Reply to the user in 2-3 friendly professional sentences: "
                     "confirm what was logged, who will handle it, and what happens next."},
             ])
             voice = (resp.content or "").strip()
