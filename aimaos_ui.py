@@ -533,8 +533,12 @@ class AIMAOSUIHandler(SimpleHTTPRequestHandler):
         )
         super().end_headers()
 
-    def log_message(self, fmt, *args):
-        logger.info("%s - %s", self.client_address[0], fmt % args)
+    def _get_current_user(self) -> dict | None:
+        token = self.headers.get("X-AIMAOS-Token") or self.headers.get("X-AIMAOS-Session")
+        if not token:
+            return None
+        from core.user_auth import UserManager
+        return UserManager().get_user_by_token(token)
 
     @property
     def parsed_path(self):
@@ -664,6 +668,7 @@ class AIMAOSUIHandler(SimpleHTTPRequestHandler):
                         "raw_tool_logs": bool(cfg.get("privacy", {}).get("store_raw_tool_logs", False)),
                         "retention_days": int(cfg.get("privacy", {}).get("log_retention_days", 30)),
                     },
+                    "current_user": self._get_current_user() or __import__("core.user_auth", fromlist=["UserManager"]).UserManager().ensure_default_admin(),
                 })
 
             if path == "/api/status":
@@ -679,7 +684,18 @@ class AIMAOSUIHandler(SimpleHTTPRequestHandler):
                     "agents": roster,
                     "daemon": _daemon_status(),
                     "jobs": [_public_job(job) for job in get_job_manager().list(limit=20)],
+                    "current_user": self._get_current_user(),
                 })
+
+            if path == "/api/admin/users":
+                current_user = self._get_current_user()
+                from core.user_auth import UserManager
+                user_mgr = UserManager()
+                if not current_user:
+                    current_user = user_mgr.ensure_default_admin()
+                if current_user.get("role") != "admin":
+                    return self._error(403, "Only Admin users can view the office user directory.", code="forbidden")
+                return self._send_json({"status": "success", "users": user_mgr.list_users(current_user)})
 
             if path == "/api/cases":
                 cases = [_public_case(case) for case in OfficeSQLite().list_all_cases()]
@@ -827,21 +843,81 @@ class AIMAOSUIHandler(SimpleHTTPRequestHandler):
                     "daemon": _daemon_status(),
                 })
 
+            if path == "/api/auth/login":
+                username = str(data.get("username", ""))
+                password = str(data.get("password", ""))
+                from core.user_auth import UserManager
+                user_rec, token = UserManager().authenticate_user(username, password)
+                return self._send_json({
+                    "status": "success",
+                    "message": f"Welcome back, {user_rec['full_name']}!",
+                    "user": user_rec,
+                    "session_token": token,
+                })
+
+            if path == "/api/auth/logout":
+                token = self.headers.get("X-AIMAOS-Token") or self.headers.get("X-AIMAOS-Session")
+                if token:
+                    from core.user_auth import UserManager
+                    UserManager().logout_token(token)
+                return self._send_json({"status": "success", "message": "Logged out successfully."})
+
+            if path == "/api/admin/users/create":
+                current_user = self._get_current_user()
+                if not current_user or current_user.get("role") != "admin":
+                    return self._error(403, "Only Admin users can create new team members.", code="forbidden")
+                from core.user_auth import UserManager
+                new_user = UserManager().create_user(
+                    username=str(data.get("username", "")),
+                    email=str(data.get("email", "")),
+                    full_name=str(data.get("full_name", "")),
+                    password=str(data.get("password", "")),
+                    role=str(data.get("role", "staff")),
+                    creator_user=current_user,
+                )
+                return self._send_json({
+                    "status": "success",
+                    "message": f"Created user {new_user['full_name']} ({new_user['role']}).",
+                    "user": new_user,
+                })
+
+            if path == "/api/admin/users/reset_password":
+                current_user = self._get_current_user()
+                if not current_user or current_user.get("role") != "admin":
+                    return self._error(403, "Only Admin users can reset team passwords.", code="forbidden")
+                from core.user_auth import UserManager
+                res = UserManager().reset_password(
+                    admin_user=current_user,
+                    target_user_id=str(data.get("user_id", "")),
+                    new_password=str(data.get("new_password", "")),
+                )
+                return self._send_json({
+                    "status": "success",
+                    "message": f"Password reset for {res['full_name']} ({res['username']}).",
+                })
+
             if path == "/api/chat":
                 message = str(data.get("message", "")).strip()
                 if not message or len(message) > 10_000:
                     raise SecurityValidationError("Message must be between 1 and 10,000 characters.")
                 matter_slug = data.get("matter_slug")
+                target_agent = str(data.get("target_agent", "Finn")).strip()
                 if matter_slug:
                     matter_slug = validate_slug(matter_slug, label="matter identifier")
                     self._case_record(matter_slug)
                     message = f"For matter [{matter_slug}]: {message}"
 
-                def chat_job():
-                    finn = load_agent("Finn", "FinnAgent")
-                    return {"message": finn.process_user_message(message)}
+                current_user = self._get_current_user()
+                sender_addr = current_user.get("email") if current_user else "user@localhost"
 
-                job_id = get_job_manager().submit("assistant", "Assistant request", chat_job)
+                def chat_job():
+                    if target_agent == "Alix":
+                        agent = load_agent("Alix", "AlixAgent")
+                    else:
+                        agent = load_agent("Finn", "FinnAgent")
+                    return {"message": agent.process_user_message(message, sender=sender_addr, channel="web_ui")}
+
+                job_id = get_job_manager().submit("assistant", f"Assistant request ({target_agent})", chat_job)
                 return self._send_json({"status": "accepted", "job_id": job_id}, 202)
 
             if path == "/api/upload":
@@ -1002,15 +1078,18 @@ class AIMAOSUIHandler(SimpleHTTPRequestHandler):
                 if priority not in {"HIGH", "NORMAL", "ROUTINE"}:
                     priority = "NORMAL"
 
+                current_user = self._get_current_user()
+                requester_name = current_user.get("full_name") if current_user else "User"
+
                 board = OfficeBoard()
                 task_id = board.post_task(
                     description,
-                    "User",
+                    requester_name,
                     assigned_agent,
                     priority,
-                    details={"source": "persistent_agent_dock"},
+                    details={"source": "persistent_agent_dock", "requester_email": current_user.get("email") if current_user else "user@localhost"},
                 )
-                board.log_activity(f"[Agent Dock] User posted task for {assigned_agent}: '{description[:60]}...'")
+                board.log_activity(f"[Agent Dock] {requester_name} posted task for {assigned_agent}: '{description[:60]}...'")
                 return self._send_json({
                     "status": "success",
                     "task_id": task_id,

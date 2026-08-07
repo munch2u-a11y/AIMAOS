@@ -77,6 +77,8 @@ function showView(viewName) {
     loadDocumentsCatalog();
   } else if (viewName === "doc-studio") {
     renderDocumentStudio();
+  } else if (viewName === "users") {
+    loadUsersCatalog();
   }
   $("#main-content").focus({ preventScroll: true });
 }
@@ -1309,6 +1311,7 @@ async function bootstrap() {
   const payload = await apiFetch("/api/bootstrap");
   state.bootstrap = payload;
   state.csrf = payload.csrf_token;
+  updateUserProfile(payload.current_user);
   renderSettings();
   $("#setup-banner").hidden = payload.setup_complete;
   if (!payload.setup_complete) toast("Setup is incomplete. Follow the setup instructions shown above.", true);
@@ -1317,6 +1320,7 @@ async function bootstrap() {
 
 function bindEvents() {
   bindNavigation();
+  bindUsersEvents();
   $("#refresh-status").addEventListener("click", loadStatus);
   $("#matter-search").addEventListener("input", renderMatterList);
   $("#new-intake-button").addEventListener("click", openUpload);
@@ -1491,6 +1495,111 @@ function renderDocumentStudio() {
         toast(err.message, true);
       }
     });
+  }
+}
+
+function bindUsersEvents() {
+  $("#users-refresh-button")?.addEventListener("click", loadUsersCatalog);
+  $("#create-user-form")?.addEventListener("submit", submitCreateUser);
+  $("#reset-password-form")?.addEventListener("submit", submitResetPassword);
+  $("#reset-pw-cancel")?.addEventListener("click", () => {
+    $("#reset-password-dialog")?.close();
+  });
+}
+
+function updateUserProfile(user) {
+  if (!user) return;
+  state.currentUser = user;
+  const pill = $("#user-profile-pill");
+  if (pill) {
+    pill.textContent = `${user.full_name} (${user.role ? user.role.toUpperCase() : "STAFF"})`;
+  }
+  const navBtnUsers = $("#nav-btn-users");
+  if (navBtnUsers) {
+    navBtnUsers.style.display = user.role === "admin" ? "" : "none";
+  }
+}
+
+async function loadUsersCatalog() {
+  const tbody = $("#users-table-body");
+  if (!tbody) return;
+  try {
+    const payload = await apiFetch("/api/admin/users");
+    const users = payload.users || [];
+    tbody.replaceChildren();
+    if (!users.length) {
+      tbody.append(node("tr", "", node("td", "empty-cell", "No users registered yet.")));
+      return;
+    }
+    users.forEach((user) => {
+      const tr = document.createElement("tr");
+
+      const tdName = node("td", "", user.full_name);
+      const tdEmail = node("td", "", user.email);
+
+      const roleClass = user.role === "admin" ? "tag urgent" : user.role === "reviewer" ? "tag routine" : "tag";
+      const tdRole = node("td", "", node("span", roleClass, user.role.toUpperCase()));
+
+      const lastLogin = user.last_login_at ? new Date(user.last_login_at).toLocaleString() : "Never";
+      const tdLogin = node("td", "", lastLogin);
+
+      const tdAction = document.createElement("td");
+      const btnReset = node("button", "secondary-button mini", "Reset Password");
+      btnReset.addEventListener("click", () => openResetPasswordDialog(user));
+      tdAction.append(btnReset);
+
+      tr.append(tdName, tdEmail, tdRole, tdLogin, tdAction);
+      tbody.append(tr);
+    });
+  } catch (err) {
+    tbody.replaceChildren(node("tr", "", node("td", "empty-cell error-text", err.message)));
+  }
+}
+
+function openResetPasswordDialog(user) {
+  const dialog = $("#reset-password-dialog");
+  if (!dialog) return;
+  $("#reset-pw-target-id").value = user.user_id;
+  $("#reset-pw-user-label").textContent = `Resetting password for ${user.full_name} (${user.username}).`;
+  $("#reset-pw-new-password").value = "";
+  dialog.showModal();
+}
+
+async function submitCreateUser(e) {
+  e.preventDefault();
+  const fullname = $("#user-create-fullname").value.trim();
+  const email = $("#user-create-email").value.trim();
+  const username = $("#user-create-username").value.trim();
+  const role = $("#user-create-role").value;
+  const password = $("#user-create-password").value;
+
+  try {
+    const payload = await apiFetch("/api/admin/users/create", {
+      method: "POST",
+      body: JSON.stringify({ full_name: fullname, email, username, role, password }),
+    });
+    toast(payload.message);
+    $("#create-user-form").reset();
+    await loadUsersCatalog();
+  } catch (err) {
+    toast(err.message, true);
+  }
+}
+
+async function submitResetPassword(e) {
+  e.preventDefault();
+  const targetId = $("#reset-pw-target-id").value;
+  const newPassword = $("#reset-pw-new-password").value;
+
+  try {
+    const payload = await apiFetch("/api/admin/users/reset_password", {
+      method: "POST",
+      body: JSON.stringify({ user_id: targetId, new_password: newPassword }),
+    });
+    toast(payload.message);
+    $("#reset-password-dialog").close();
+  } catch (err) {
+    toast(err.message, true);
   }
 }
 

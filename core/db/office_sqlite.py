@@ -58,7 +58,23 @@ class OfficeSQLite:
                     value TEXT NOT NULL
                 )
             """)
-            
+
+            # 0. Users Table
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS users (
+                    user_id TEXT PRIMARY KEY,
+                    username TEXT UNIQUE NOT NULL,
+                    email TEXT UNIQUE NOT NULL,
+                    full_name TEXT NOT NULL,
+                    role TEXT NOT NULL DEFAULT 'staff',
+                    password_hash TEXT NOT NULL,
+                    salt TEXT NOT NULL,
+                    is_active INTEGER NOT NULL DEFAULT 1,
+                    created_at TEXT NOT NULL,
+                    last_login_at TEXT
+                )
+            """)
+
             # 1. Cases Table
             cursor.execute("""
                 CREATE TABLE IF NOT EXISTS cases (
