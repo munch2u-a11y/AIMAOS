@@ -735,6 +735,55 @@ function renderReviewNotes() {
   });
 }
 
+async function rollbackDocumentRevision(revisionId) {
+  const review = state.reviewDocument;
+  if (!review || !revisionId) return;
+  try {
+    const payload = await apiFetch("/api/document_rollback", {
+      method: "POST",
+      body: JSON.stringify({
+        slug: review.slug,
+        path: review.file.path,
+        revision_id: revisionId,
+      }),
+    });
+    toast(payload.message);
+    await openDocumentReview(review.slug, review.file.path, { preserveSelection: true });
+    if ($("#view-documents") && !$("#view-documents").hidden) {
+      await loadDocumentsCatalog();
+    }
+  } catch (error) {
+    toast(error.message, true);
+  }
+}
+
+function renderDocumentRevisions() {
+  const container = $("#document-review-revisions");
+  if (!container) return;
+  container.replaceChildren();
+  const revisions = state.reviewDocument?.revisions || [];
+  $("#document-review-revision-count").textContent = `${revisions.length} version${revisions.length === 1 ? "" : "s"}`;
+  if (!revisions.length) {
+    container.append(node("p", "form-help", "No previous revisions saved yet."));
+    return;
+  }
+  revisions.forEach((rev, idx) => {
+    const card = node("article", "review-note-card");
+    const heading = node("div", "section-row");
+    const label = idx === 0 ? "Current Version" : `Version ${revisions.length - idx}`;
+    heading.append(node("strong", "", label), node("small", "doc-cat-matter", formatDate(rev.timestamp)));
+    card.append(heading);
+    card.append(node("p", "form-help", `${rev.author} · ${rev.comment || "Snapshot"}`));
+    if (idx > 0) {
+      const rbBtn = node("button", "secondary-button mini", "Roll back to this version");
+      rbBtn.type = "button";
+      rbBtn.addEventListener("click", () => rollbackDocumentRevision(rev.revision_id));
+      card.append(rbBtn);
+    }
+    container.append(card);
+  });
+}
+
 function renderDocumentReview() {
   const review = state.reviewDocument;
   if (!review) return;
@@ -790,6 +839,7 @@ function renderDocumentReview() {
     });
   }
   renderReviewNotes();
+  renderDocumentRevisions();
   selectReviewLine(state.selectedReviewLine);
 
   const viewerTitle = $("#documents-viewer-title");

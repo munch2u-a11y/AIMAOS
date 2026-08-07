@@ -406,6 +406,8 @@ def _document_review_payload(case_dir: str, rel_path: str) -> dict:
                 "stale": line_hashes.get(note.get("line_number")) != note.get("line_hash"),
             }.items() if value is not None
         })
+    from core.document_history import DocumentHistoryStore
+    revisions = DocumentHistoryStore(case_dir).list_revisions(normalized_rel)
     return _browser_safe_value({
         "file": {
             "name": os.path.basename(file_path),
@@ -422,6 +424,7 @@ def _document_review_payload(case_dir: str, rel_path: str) -> dict:
         "lines": [{"number": index, "text": text} for index, text in enumerate(raw_lines, start=1)],
         "notes": public_notes,
         "open_note_count": sum(note.get("status") != "resolved" for note in notes),
+        "revisions": revisions,
     })
 
 
@@ -449,22 +452,20 @@ def _documents_catalog_payload() -> list[dict]:
                 for f in sorted(files):
                     if f.startswith("."):
                         continue
-                    full_path = os.path.join(root, f)
-                    rel_path = os.path.relpath(full_path, case_dir).replace(os.sep, "/")
-                    ext = os.path.splitext(f)[1].lower()
-                    if ext in REVIEWABLE_EXTENSIONS and not path_is_sensitive(full_path, root=case_dir):
+                    full_p = os.path.join(root, f)
+                    rel_p = os.path.relpath(full_p, case_dir).replace(os.sep, "/")
+                    if is_reviewable_file(rel_p):
                         catalog.append({
                             "client_slug": slug,
                             "client_name": client_name,
-                            "relative_path": rel_path,
                             "file_name": f,
-                            "size": os.path.getsize(full_path),
-                            "modified_at": datetime.fromtimestamp(os.path.getmtime(full_path)).isoformat(),
-                            "open_notes": open_notes_by_path.get(rel_path, 0),
+                            "relative_path": rel_p,
+                            "size": os.path.getsize(full_p),
+                            "open_notes": open_notes_by_path.get(rel_p, 0),
                         })
         except Exception:
-            continue
-    return sorted(catalog, key=lambda d: (d["client_name"].lower(), d["file_name"].lower()))
+            logger.exception("Failed to scan documents for case '%s'", slug)
+    return catalog
 
 
 def _queue_document_feedback(
@@ -474,6 +475,12 @@ def _queue_document_feedback(
     notes = DocumentReviewStore(case_dir).list_notes(normalized_rel, include_resolved=False)
     if not notes:
         raise SecurityValidationError("Add at least one open review note before queueing corrections.")
+
+    from core.document_history import DocumentHistoryStore
+    DocumentHistoryStore(case_dir).create_snapshot(
+        normalized_rel, author="User", comment="Automatic pre-correction snapshot before agent edits"
+    )
+
     file_name = os.path.basename(normalized_rel)
     review_key = "document_feedback:" + hashlib.sha256(
         f"{slug}:{normalized_rel}".encode("utf-8", errors="replace")
@@ -499,8 +506,8 @@ def _queue_document_feedback(
             "work_type": "document_feedback",
             "review_key": review_key,
             "next_action": (
-                "Read AIMAOS_REVIEW_NOTES.md, apply every open note to a new reviewed draft, "
-                "and preserve the source document."
+                "Read AIMAOS_REVIEW_NOTES.md, apply every open note directly to the document in-place "
+                "(an automatic revision snapshot has been saved), and resolve applied notes."
             ),
         },
     )
@@ -785,6 +792,7 @@ class AIMAOSUIHandler(SimpleHTTPRequestHandler):
                 "/api/quick_action", "/api/work_item", "/api/agenda/respond",
                 "/api/agent/publish-widget",
                 "/api/document_review_note", "/api/document_review_submit",
+                "/api/document_rollback",
                 "/api/daemon/pause", "/api/daemon/resume", "/api/daemon/toggle",
             }
             if path in work_routes and not _setup_complete():
@@ -1139,6 +1147,30 @@ class AIMAOSUIHandler(SimpleHTTPRequestHandler):
                         "Document corrections were queued for Alix."
                         if created else "Document corrections are already in the office queue."
                     ),
+                })
+
+            if path == "/api/document_rollback":
+                slug = validate_slug(str(data.get("slug", "")), label="matter identifier")
+                rel_path = str(data.get("path", ""))
+                revision_id = str(data.get("revision_id", "")).strip()
+                _case, case_dir = self._case_record(slug)
+                file_path = _resolve_public_case_file(case_dir, rel_path, must_exist=True)
+                if not os.path.isfile(file_path):
+                    raise FileNotFoundError("Document not found.")
+                normalized_rel = os.path.relpath(file_path, case_dir).replace(os.sep, "/")
+                from core.document_history import DocumentHistoryStore
+                history = DocumentHistoryStore(case_dir)
+                try:
+                    rev = history.rollback_revision(normalized_rel, revision_id, author="User")
+                except (ValueError, FileNotFoundError) as exc:
+                    raise SecurityValidationError(str(exc)) from exc
+                OfficeBoard().log_activity(
+                    f"[Document History] Rolled back '{os.path.basename(file_path)}' to revision {revision_id} in '{slug}'."
+                )
+                return self._send_json({
+                    "status": "success",
+                    "message": f"Document restored to revision {revision_id}.",
+                    "revision": rev,
                 })
 
             if path == "/api/open_file":
