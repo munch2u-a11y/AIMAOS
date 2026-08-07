@@ -17,12 +17,12 @@ class TestDesktopLauncher(unittest.TestCase):
     def test_build_app_command(self):
         url = "http://127.0.0.1:8080"
         binary = "/usr/bin/chromium"
-        cmd = build_app_command(url, binary, title="AIMAOS")
+        cmd = build_app_command(url, binary, title="AIMAOS", user_data_dir="/tmp/test_profile")
 
         self.assertIn("/usr/bin/chromium", cmd)
         self.assertIn("--app=http://127.0.0.1:8080", cmd)
         self.assertIn("--window-name=AIMAOS", cmd)
-        self.assertTrue(any(arg.startswith("--user-data-dir=") for arg in cmd))
+        self.assertIn("--user-data-dir=/tmp/test_profile", cmd)
 
 
 if __name__ == "__main__":

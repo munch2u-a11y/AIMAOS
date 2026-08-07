@@ -55,11 +55,6 @@ def build_app_command(url: str, binary: str, *, user_data_dir: str | None = None
     cmd = [binary, f"--app={url}"]
     if user_data_dir:
         cmd.append(f"--user-data-dir={user_data_dir}")
-    else:
-        # Create a lightweight profile dir inside app data root to isolate window state
-        default_profile = os.path.expanduser("~/.gemini/antigravity/aimaos_desktop_profile")
-        os.makedirs(default_profile, exist_ok=True)
-        cmd.append(f"--user-data-dir={default_profile}")
 
     cmd.extend([
         "--no-first-run",
