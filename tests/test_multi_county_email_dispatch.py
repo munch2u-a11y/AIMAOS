@@ -24,19 +24,25 @@ def load_module(mod_name, file_path):
     spec.loader.exec_module(mod)
     return mod
 
-def run_multi_county_dispatch_test():
+def _resolve(rel_path):
+    primary = os.path.join(AIMAOS_ROOT, rel_path)
+    if os.path.exists(primary):
+        return primary
+    return os.path.join(AIMAOS_ROOT, "starter_packs", "document_heavy", rel_path)
+
+def test_multi_county_dispatch():
     print("====================================================================")
-    print("AIMAOS MULTI-COUNTY CLIENT INTAKE, FORM GENERATION & EMAIL DISPATCH")
+    print("TEST: MULTI-COUNTY EMAIL DISPATCH CONTRACT")
     print(f"Target User Email: {USER_EMAIL}")
     print("====================================================================\n")
 
     # Load agent modules
-    finn_agent_mod = load_module("finn_agent_mod", os.path.join(AIMAOS_ROOT, "Finn-AI/core/agent.py"))
-    kai_agent_mod = load_module("kai_agent_mod", os.path.join(AIMAOS_ROOT, "Kai-AI/core/agent.py"))
-    marley_agent_mod = load_module("marley_agent_mod", os.path.join(AIMAOS_ROOT, "Marley-AI/core/agent.py"))
-    quinn_agent_mod = load_module("quinn_agent_mod", os.path.join(AIMAOS_ROOT, "Quinn-AI/core/agent.py"))
+    finn_agent_mod = load_module("finn_agent_mod", _resolve("Finn-AI/core/agent.py"))
+    kai_agent_mod = load_module("kai_agent_mod", _resolve("Kai-AI/core/agent.py"))
+    marley_agent_mod = load_module("marley_agent_mod", _resolve("Marley-AI/core/agent.py"))
+    quinn_agent_mod = load_module("quinn_agent_mod", _resolve("Quinn-AI/core/agent.py"))
     
-    cmd_channel_mod = load_module("cmd_channel_mod", os.path.join(AIMAOS_ROOT, "Finn-AI/tools/commandeer_channel.py"))
+    cmd_channel_mod = load_module("cmd_channel_mod", _resolve("Finn-AI/tools/commandeer_channel.py"))
 
     finn = finn_agent_mod.FinnAgent()
     kai = kai_agent_mod.KaiAgent()
@@ -44,7 +50,7 @@ def run_multi_county_dispatch_test():
     quinn = quinn_agent_mod.QuinnAgent()
 
     board = OfficeBoard()
-    templates_base = os.path.join(AIMAOS_ROOT, "Alix-AI/templates")
+    templates_base = _resolve("Alix-AI/templates")
 
     clients = [
         {

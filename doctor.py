@@ -69,10 +69,12 @@ def run_checks() -> list[Check]:
     writable = os.access(ROOT, os.W_OK)
     checks.append(Check("Application storage", "pass" if writable else "fail", str(ROOT)))
 
-    agents = sorted(path.name for path in ROOT.glob("*-AI") if path.is_dir())
+    live_agents = sorted(path.name for path in ROOT.glob("*-AI") if path.is_dir())
+    starter_agents = sorted(path.name for path in (ROOT / "starter_packs" / "document_heavy").glob("*-AI") if path.is_dir())
+    agents = live_agents or starter_agents
     checks.append(Check(
         "Starter setup", "pass" if agents else "warn",
-        f"{len(agents)} agent workspaces" if agents else "not materialized; run python3 setup.py",
+        f"{len(agents)} agent workspaces" if live_agents else f"{len(agents)} starter agent workspaces (run python3 setup.py to materialize)",
     ))
 
     llm_cfg = cfg.get("llm", {})

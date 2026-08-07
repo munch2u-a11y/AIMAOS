@@ -111,7 +111,8 @@ def _output_root() -> str:
 def _setup_complete() -> bool:
     required_agents = {"Alix", "Kai", "Marley", "Finn"}
     return all(
-        os.path.isfile(os.path.join(AIMAOS_ROOT, f"{name}-AI", "core", "agent.py"))
+        os.path.isfile(os.path.join(AIMAOS_ROOT, f"{name}-AI", "core", "agent.py")) or
+        os.path.isfile(os.path.join(AIMAOS_ROOT, "starter_packs", "document_heavy", f"{name}-AI", "core", "agent.py"))
         for name in required_agents
     ) and os.path.isdir(_templates_root())
 
@@ -128,6 +129,8 @@ def _load_module(name: str, path: str):
 
 def load_agent(agent_name: str, class_name: str):
     path = os.path.join(AIMAOS_ROOT, f"{agent_name}-AI", "core", "agent.py")
+    if not os.path.isfile(path):
+        path = os.path.join(AIMAOS_ROOT, "starter_packs", "document_heavy", f"{agent_name}-AI", "core", "agent.py")
     if not os.path.isfile(path):
         raise RuntimeError("The office is not set up yet. Run the setup wizard first.")
     module = _load_module(f"aimaos_ui_{agent_name.lower()}", path)

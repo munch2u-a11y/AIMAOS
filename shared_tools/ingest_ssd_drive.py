@@ -18,8 +18,10 @@ import logging
 from datetime import datetime
 
 sys.path.insert(0, AIMAOS_ROOT)
-sys.path.insert(0, os.path.join(AIMAOS_ROOT, "Kai-AI/tools"))
-sys.path.insert(0, os.path.join(AIMAOS_ROOT, "Alix-AI/tools"))
+for rel in ["Kai-AI/tools", "Alix-AI/tools", "starter_packs/document_heavy/Kai-AI/tools", "starter_packs/document_heavy/Alix-AI/tools"]:
+    p = os.path.join(AIMAOS_ROOT, rel)
+    if os.path.isdir(p) and p not in sys.path:
+        sys.path.insert(0, p)
 
 import drive_ingestion
 import catalog_templates
