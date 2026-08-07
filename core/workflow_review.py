@@ -15,6 +15,7 @@ import re
 from datetime import date, datetime, timedelta
 
 from core.atomic_io import atomic_write_json
+from core.agent_widgets import validate_widget_schema
 from core.comms.office_board import OfficeBoard
 from core.db.office_sqlite import OfficeSQLite
 from core.local_calendar import LocalCalendar
@@ -459,6 +460,14 @@ def build_workstation_items(
         requires_human = bool(details.get("requires_human"))
         client_name = target_details.get("client_name")
         client_slug = target.get("client_slug") if target else _safe_normalize_slug(client_name)
+        form_spec = details.get("interactive_form")
+        banner_spec = details.get("alert_banner")
+        user_responses = details.get("user_responses")
+        validated_widgets = validate_widget_schema({
+            "interactive_form": form_spec,
+            "alert_banner": banner_spec,
+        }) if (form_spec or banner_spec) else {}
+
         items.append({
             "id": task_id,
             "title": _clean(task.get("title"), 200),
@@ -476,6 +485,9 @@ def build_workstation_items(
             "requires_human": requires_human,
             "can_complete": requires_human and task.get("status") == "waiting_on_human",
             "can_snooze": requires_human and task.get("status") == "waiting_on_human",
+            "interactive_form": validated_widgets.get("interactive_form"),
+            "alert_banner": validated_widgets.get("alert_banner"),
+            "user_responses": user_responses if isinstance(user_responses, dict) else None,
             "source": "office_board",
         })
         linked_event_tasks.add(task_id)
@@ -575,6 +587,50 @@ def complete_human_task(task_id: str, *, board: OfficeBoard | None = None,
         raise ValueError("Only an active human follow-up can be completed here.")
     board.update_task_status(task_id, "completed", result="Completed by staff in the local workstation.")
     calendar.complete_for_task(task_id)
+
+
+def submit_human_form_response(
+    task_id: str,
+    responses: dict,
+    *,
+    board: OfficeBoard | None = None,
+    calendar: LocalCalendar | None = None,
+) -> dict:
+    """Record user input responses for an agent request form and re-queue the task."""
+    if not isinstance(responses, dict):
+        raise ValueError("Responses must be a dictionary.")
+
+    board = board or OfficeBoard()
+    calendar = calendar or LocalCalendar()
+    task_found = [None]
+
+    def mutate(payload):
+        task = next((item for item in payload.get("active_tasks", []) if item.get("id") == task_id), None)
+        if not task:
+            raise ValueError(f"Active task '{task_id}' not found.")
+        details = _task_details(task)
+
+        existing_responses = details.get("user_responses")
+        if not isinstance(existing_responses, dict):
+            existing_responses = {}
+        existing_responses.update(responses)
+        details["user_responses"] = existing_responses
+
+        task["status"] = "queued"
+        details["requires_human"] = False
+        details["workflow_auto_blocked"] = False
+        details.pop("blocker", None)
+        details["next_action"] = "User form responses provided. Agent will process updated inputs."
+        task_found[0] = task
+
+        board._append_activity(
+            payload,
+            f"[WORKSTATION] Form responses submitted for task '{task.get('title')}'. Requeued for agent processing."
+        )
+
+    board._locked_mutation(mutate)
+    calendar.complete_for_task(task_id)
+    return task_found[0] or {}
 
 
 def snooze_human_task(task_id: str, due_date: str, *, board: OfficeBoard | None = None,
