@@ -6,11 +6,12 @@ import argparse
 import importlib.util
 import json
 import os
-import shutil
 import sys
 import urllib.request
 from dataclasses import asdict, dataclass
 from pathlib import Path
+
+from core.platform_support import find_libreoffice, launch_command
 
 ROOT = Path(__file__).resolve().parent
 REQUIRED_MODULES = {
@@ -72,7 +73,7 @@ def run_checks() -> list[Check]:
     agents = sorted(path.name for path in ROOT.glob("*-AI") if path.is_dir())
     checks.append(Check(
         "Starter setup", "pass" if agents else "warn",
-        f"{len(agents)} agent workspaces" if agents else "not materialized; run python3 setup.py",
+        f"{len(agents)} agent workspaces" if agents else f"not materialized; run {launch_command('setup.py')}",
     ))
 
     llm_cfg = cfg.get("llm", {})
@@ -114,9 +115,10 @@ def run_checks() -> list[Check]:
         f"{len(templates)} templates; {len(metadata)} metadata files",
     ))
 
+    libreoffice = find_libreoffice()
     checks.append(Check(
-        "Native document conversion", "pass" if shutil.which("soffice") else "warn",
-        "LibreOffice found" if shutil.which("soffice") else "LibreOffice not found; DOCX remains available",
+        "Native document conversion", "pass" if libreoffice else "warn",
+        f"LibreOffice found at {libreoffice}" if libreoffice else "LibreOffice not found; DOCX remains available",
     ))
     return checks
 

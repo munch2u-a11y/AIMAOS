@@ -115,15 +115,15 @@ class CaseAgent:
             return ""
 
     def review(self, current_record_markdown, directory_listing, available_agents=None,
-               document_excerpt=None):
+               document_excerpt=None, prior_review_context=None, record_experience=True):
         """One reasoning pass over the case's current record + directory
         contents. Returns a dict with any of {summary, next_steps,
-        required_documents, tasks_to_assign, deadlines, user_notification}
+        required_documents, tasks_to_assign, candidate_dates, user_notification}
         present (any key may
         be omitted if there's nothing to change/flag) for the caller to
         apply back to its own record store and act on -- tasks_to_assign and
-        deadlines are for the caller to actually post/schedule, not just
-        text to display. Also records a private belief about the review,
+        candidate dates are for the caller to route to staff verification,
+        not to schedule or treat as authoritative. Also records a private belief about the review,
         independent of the shared record.
 
         available_agents: optional {name: role} of who tasks_to_assign may
@@ -134,7 +134,7 @@ class CaseAgent:
         instead of a real, routable agent name, so pass this whenever the
         caller intends to act on tasks_to_assign rather than just display it.
         """
-        prior = self._prior_review_context()
+        prior = self._prior_review_context() if prior_review_context is None else prior_review_context
         sys_prompt = (
             f"You are the case manager for '{self.client_name}'. This is your own record of the case "
             f"so far — it's the whole of your context on this matter, treat it as your own memory:\n\n"
@@ -171,8 +171,10 @@ class CaseAgent:
             '  "required_documents": {"<document name>": "<status>"} for key required documents\n'
             '  "tasks_to_assign": [{"agent": "<who should do it>", "title": "<short task name>", '
             '"description": "<what needs doing>"}]\n'
-            '  "deadlines": [{"description": "<what it is>", "date": "<YYYY-MM-DD or date string>"}]\n'
+            '  "candidate_dates": [{"description": "<what it is>", "date": "<date exactly as shown>", '
+            '"source_path": "<relative changed-file path; required>"}]\n'
             '  "user_notification": {"needed": true, "reason": "<why>", "needed_info": ["<item>"]}\n'
+            "Dates are candidates only. Never calculate a legal deadline or claim that a date is verified. "
             "No text outside the JSON object."
         )
         if document_excerpt:
@@ -207,8 +209,9 @@ class CaseAgent:
                 raise ValueError("response was not a JSON object")
         except (ValueError, json.JSONDecodeError) as e:
             logger.warning(f"[case_agent:{self.client_name}] review reply was not valid JSON: {e}")
-            self.record_experience(f"Attempted a review but couldn't produce a structured update: {e}",
-                                   confidence=0.4)
+            if record_experience:
+                self.record_experience(f"Attempted a review but couldn't produce a structured update: {e}",
+                                       confidence=0.4)
             return {}
 
         if available_agents and update.get("tasks_to_assign"):
@@ -218,10 +221,11 @@ class CaseAgent:
             if dropped:
                 logger.warning(f"[case_agent:{self.client_name}] dropped task(s) naming a non-roster "
                                f"agent: {[t.get('agent') for t in dropped]}")
-                self.record_experience(
-                    f"Tried to assign work to an agent not in the given roster: "
-                    f"{[t.get('agent') for t in dropped]}. Dropped rather than routing to nowhere.",
-                    confidence=0.4)
+                if record_experience:
+                    self.record_experience(
+                        f"Tried to assign work to an agent not in the given roster: "
+                        f"{[t.get('agent') for t in dropped]}. Dropped rather than routing to nowhere.",
+                        confidence=0.4)
             update["tasks_to_assign"] = valid
 
         if not self.security_settings.get("allow_document_delegation", False):
@@ -230,8 +234,9 @@ class CaseAgent:
             # convert document content into executable office tasks.
             update["tasks_to_assign"] = []
 
-        self.record_experience(
-            "Reviewed the matter and produced a structured update."
-            if update else "Reviewed the matter but produced no structured update."
-        )
+        if record_experience:
+            self.record_experience(
+                "Reviewed the matter and produced a structured update."
+                if update else "Reviewed the matter but produced no structured update."
+            )
         return update

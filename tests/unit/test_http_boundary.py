@@ -87,6 +87,10 @@ def test_document_review_http_flow(monkeypatch, tmp_path):
         aimaos_ui, "_queue_document_feedback",
         lambda **_kwargs: ("task_document_feedback", True),
     )
+    monkeypatch.setattr(
+        aimaos_ui, "_queue_case_specialist_refresh",
+        lambda **_kwargs: "job_case_review",
+    )
     try:
         server = ThreadingHTTPServer(("127.0.0.1", 0), aimaos_ui.AIMAOSUIHandler)
     except PermissionError:
@@ -125,6 +129,7 @@ def test_document_review_http_flow(monkeypatch, tmp_path):
         ) as response:
             queued = json.load(response)
         assert queued["task_id"] == "task_document_feedback"
+        assert queued["review_job_id"] == "job_case_review"
     finally:
         server.shutdown()
         server.server_close()

@@ -1,13 +1,13 @@
 """Private, idempotent local calendar used by Marley and the workstation."""
 from __future__ import annotations
 
-import fcntl
 import hashlib
 import json
 import os
 from datetime import datetime
 
 from core.atomic_io import atomic_write_json
+from core.file_lock import lock_file, unlock_file
 
 
 def _find_aimaos_root() -> str:
@@ -48,14 +48,14 @@ class LocalCalendar:
 
     def _mutate(self, callback):
         with open(self.lock_path, "a+", encoding="utf-8") as lock_handle:
-            fcntl.flock(lock_handle, fcntl.LOCK_EX)
+            lock_file(lock_handle)
             try:
                 events = self._load_unlocked()
                 result = callback(events)
                 atomic_write_json(self.path, events)
                 return result
             finally:
-                fcntl.flock(lock_handle, fcntl.LOCK_UN)
+                unlock_file(lock_handle)
 
     def list_events(self, *, include_completed: bool = False) -> list[dict]:
         events = self._load_unlocked()

@@ -7,10 +7,10 @@ def _find_aimaos_root():
     return p
 AIMAOS_ROOT = os.environ.get("AIMAOS_ROOT") or _find_aimaos_root()
 import json
-import fcntl
 import logging
 from datetime import datetime, timedelta
 from core.atomic_io import atomic_write_json
+from core.file_lock import exclusive_file_lock
 
 logger = logging.getLogger(__name__)
 
@@ -23,7 +23,7 @@ class OfficeBoard:
     Tracks active tasks, priority queues, agent turn assignments, and live activity stream.
 
     Multiple agent processes read and mutate this board concurrently, so every
-    mutation re-reads the file under an exclusive flock before writing back —
+    mutation re-reads the file under an exclusive advisory lock before writing back —
     otherwise two agents holding stale in-memory copies overwrite each other's
     tasks (last-writer-wins data loss).
     """
@@ -63,50 +63,46 @@ class OfficeBoard:
         retained during the beta for compatibility with existing agents, but
         database sync failures are logged instead of silently hidden.
         """
-        with open(OFFICE_BOARD_LOCK, "a+") as lock_f:
-            fcntl.flock(lock_f, fcntl.LOCK_EX)
+        with exclusive_file_lock(OFFICE_BOARD_LOCK):
+            self.board = self._load_board()
+            result = mutate_fn(self.board)
             try:
-                self.board = self._load_board()
-                result = mutate_fn(self.board)
-                try:
-                    from core.security import load_security_config
-                    retention_days = max(
-                        1, int(load_security_config().get("privacy", {}).get("log_retention_days", 30))
-                    )
-                    cutoff = datetime.now() - timedelta(days=retention_days)
-                    completed = []
-                    for task in self.board.get("completed_tasks", []):
-                        try:
-                            completed_at = datetime.fromisoformat(
-                                task.get("completed_at") or task.get("updated_at") or task.get("created_at")
-                            )
-                        except (TypeError, ValueError):
-                            completed_at = datetime.now()
-                        if completed_at >= cutoff:
-                            completed.append(task)
-                    self.board["completed_tasks"] = completed[-500:]
-                except Exception as exc:
-                    logger.warning("Could not prune Office Board history: %s", exc)
-                atomic_write_json(OFFICE_BOARD_FILE, self.board)
-                try:
-                    from core.db.office_sqlite import OfficeSQLite
-                    db = OfficeSQLite()
-                    all_tasks = (self.board.get("active_tasks", [])
-                                 + self.board.get("completed_tasks", []))
-                    for t in all_tasks:
-                        db.upsert_task(
-                            task_id=t.get("id") or t.get("task_id"),
-                            title=t.get("title", "Untitled"),
-                            description=str(t.get("details", "")),
-                            assigned_agent=t.get("assigned_agent", "Unassigned"),
-                            priority=t.get("priority", "NORMAL"),
-                            status=t.get("status", "queued")
+                from core.security import load_security_config
+                retention_days = max(
+                    1, int(load_security_config().get("privacy", {}).get("log_retention_days", 30))
+                )
+                cutoff = datetime.now() - timedelta(days=retention_days)
+                completed = []
+                for task in self.board.get("completed_tasks", []):
+                    try:
+                        completed_at = datetime.fromisoformat(
+                            task.get("completed_at") or task.get("updated_at") or task.get("created_at")
                         )
-                except Exception as exc:
-                    logger.exception("Could not synchronize Office Board to SQLite: %s", exc)
-                return result
-            finally:
-                fcntl.flock(lock_f, fcntl.LOCK_UN)
+                    except (TypeError, ValueError):
+                        completed_at = datetime.now()
+                    if completed_at >= cutoff:
+                        completed.append(task)
+                self.board["completed_tasks"] = completed[-500:]
+            except Exception as exc:
+                logger.warning("Could not prune Office Board history: %s", exc)
+            atomic_write_json(OFFICE_BOARD_FILE, self.board)
+            try:
+                from core.db.office_sqlite import OfficeSQLite
+                db = OfficeSQLite()
+                all_tasks = (self.board.get("active_tasks", [])
+                             + self.board.get("completed_tasks", []))
+                for t in all_tasks:
+                    db.upsert_task(
+                        task_id=t.get("id") or t.get("task_id"),
+                        title=t.get("title", "Untitled"),
+                        description=str(t.get("details", "")),
+                        assigned_agent=t.get("assigned_agent", "Unassigned"),
+                        priority=t.get("priority", "NORMAL"),
+                        status=t.get("status", "queued")
+                    )
+            except Exception as exc:
+                logger.exception("Could not synchronize Office Board to SQLite: %s", exc)
+            return result
 
     def _append_activity(self, board, message):
         board["activity_stream"].append({
