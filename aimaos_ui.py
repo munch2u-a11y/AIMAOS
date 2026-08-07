@@ -1245,7 +1245,7 @@ def _start_daemon_process() -> subprocess.Popen | None:
     )
 
 
-def launch_aimaos_ui(port=8080, host="127.0.0.1", open_browser=True, start_daemon=True):
+def launch_aimaos_ui(port=8080, host="127.0.0.1", open_browser=True, start_daemon=True, desktop_mode=False):
     cfg = load_security_config()
     allow_lan = bool(cfg.get("ui", {}).get("allow_lan", False))
     if not _is_loopback(host):
@@ -1274,7 +1274,10 @@ def launch_aimaos_ui(port=8080, host="127.0.0.1", open_browser=True, start_daemo
     print(f"Office daemon: {'managed by dashboard' if start_daemon else 'external / disabled'}")
     print("=" * 68)
 
-    if open_browser:
+    if desktop_mode:
+        from core.desktop_launcher import launch_desktop_window
+        launch_desktop_window(url, title="AIMAOS")
+    elif open_browser:
         try:
             webbrowser.open(url)
         except Exception:
@@ -1312,12 +1315,14 @@ def main(argv=None):
     parser.add_argument("--port", type=int, default=int(cfg.get("port", 8080)))
     parser.add_argument("--no-browser", action="store_true")
     parser.add_argument("--no-daemon", action="store_true")
+    parser.add_argument("--desktop", "--app-window", action="store_true", help="Launch in standalone desktop app window mode")
     args = parser.parse_args(argv)
     launch_aimaos_ui(
         port=args.port,
         host=args.host,
-        open_browser=not args.no_browser,
+        open_browser=not args.no_browser and not args.desktop,
         start_daemon=not args.no_daemon,
+        desktop_mode=args.desktop,
     )
 
 
