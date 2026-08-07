@@ -75,6 +75,8 @@ function showView(viewName) {
   });
   if (viewName === "documents") {
     loadDocumentsCatalog();
+  } else if (viewName === "doc-studio") {
+    renderDocumentStudio();
   }
   $("#main-content").focus({ preventScroll: true });
 }
@@ -1346,6 +1348,7 @@ function bindEvents() {
   $$("[data-quick-action]").forEach((button) => {
     button.addEventListener("click", () => triggerQuickAction(button.dataset.quickAction));
   });
+  bindAgentDock();
   $("#clone-form").addEventListener("submit", submitClone);
   $("#auth-form").addEventListener("submit", async (event) => {
     event.preventDefault();
@@ -1358,6 +1361,137 @@ function bindEvents() {
       toast(error.message, true);
     }
   });
+}
+
+function bindAgentDock() {
+  const dock = $("#persistent-agent-dock");
+  if (!dock) return;
+
+  $("#dock-toggle-btn")?.addEventListener("click", () => {
+    const isCollapsed = dock.classList.toggle("collapsed");
+    $("#dock-toggle-btn").textContent = isCollapsed ? "⇤" : "⇥";
+  });
+
+  const tabTask = $("#dock-tab-task");
+  const tabFinn = $("#dock-tab-finn");
+  const panelTask = $("#dock-panel-task");
+  const panelFinn = $("#dock-panel-finn");
+
+  tabTask?.addEventListener("click", () => {
+    tabTask.classList.add("active");
+    tabFinn.classList.remove("active");
+    panelTask.hidden = false;
+    panelFinn.hidden = true;
+  });
+
+  tabFinn?.addEventListener("click", () => {
+    tabFinn.classList.add("active");
+    tabTask.classList.remove("active");
+    panelFinn.hidden = false;
+    panelTask.hidden = true;
+    $("#dock-finn-input")?.focus();
+  });
+
+  $("#dock-task-form")?.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const desc = $("#dock-task-desc").value.trim();
+    if (!desc) return;
+    try {
+      const payload = await apiFetch("/api/quick_task", {
+        method: "POST",
+        body: JSON.stringify({
+          description: desc,
+          assigned_agent: $("#dock-task-agent").value,
+          priority: $("#dock-task-priority").value,
+        }),
+      });
+      toast(payload.message);
+      $("#dock-task-desc").value = "";
+      await loadStatus();
+    } catch (err) {
+      toast(err.message, true);
+    }
+  });
+
+  $("#dock-finn-form")?.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const input = $("#dock-finn-input");
+    const text = input.value.trim();
+    if (!text) return;
+    input.value = "";
+
+    const history = $("#dock-finn-messages");
+    history.append(node("div", "chat-user-message", text));
+    history.scrollTop = history.scrollHeight;
+
+    try {
+      const payload = await apiFetch("/api/chat", {
+        method: "POST",
+        body: JSON.stringify({ message: text, target_agent: "Finn" }),
+      });
+      history.append(node("div", "chat-agent-message", payload.reply || payload.message || "Message received by Finn."));
+      history.scrollTop = history.scrollHeight;
+    } catch (err) {
+      toast(err.message, true);
+    }
+  });
+}
+
+function renderDocumentStudio() {
+  const select = $("#studio-template-select");
+  if (select && select.children.length <= 1) {
+    const templates = state.bootstrap?.templates || [];
+    templates.forEach((tmpl) => {
+      const opt = document.createElement("option");
+      opt.value = tmpl.id;
+      opt.textContent = `${tmpl.name} (${tmpl.category || "General"})`;
+      select.append(opt);
+    });
+
+    select.addEventListener("change", () => {
+      const tmplId = select.value;
+      const tmpl = (state.bootstrap?.templates || []).find((t) => t.id === tmplId);
+      if (tmpl) {
+        $("#studio-doc-title").value = tmpl.name;
+        const initialText = (tmpl.fields || []).map((f) => `${f.label || f.name}: [${f.name}]`).join("\n");
+        $("#studio-doc-content").value = initialText || tmpl.description || "";
+      }
+    });
+  }
+
+  const studioForm = $("#studio-alix-form");
+  if (studioForm && !studioForm.dataset.bound) {
+    studioForm.dataset.bound = "true";
+    studioForm.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const input = $("#studio-alix-input");
+      const text = input.value.trim();
+      if (!text) return;
+      input.value = "";
+
+      const log = $("#studio-alix-messages");
+      log.append(node("div", "chat-user-message", text));
+      log.scrollTop = log.scrollHeight;
+
+      try {
+        const payload = await apiFetch("/api/chat", {
+          method: "POST",
+          body: JSON.stringify({
+            message: text,
+            target_agent: "Alix",
+            context: {
+              title: $("#studio-doc-title")?.value || "",
+              content: $("#studio-doc-content")?.value || "",
+            },
+          }),
+        });
+        log.append(node("div", "chat-agent-message", payload.reply || payload.message || "Alix processed your authoring request."));
+        log.scrollTop = log.scrollHeight;
+      } catch (err) {
+        toast(err.message, true);
+      }
+    });
+  }
 }
 
 document.addEventListener("DOMContentLoaded", async () => {

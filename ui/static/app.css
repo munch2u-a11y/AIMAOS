@@ -610,3 +610,124 @@ dialog::backdrop { background: rgba(13, 22, 33, .58); }
   font-size: 0.78rem;
   color: var(--text-muted);
 }
+
+/* Persistent Agent Action Dock */
+.agent-dock {
+  width: 320px;
+  min-width: 320px;
+  background: var(--surface);
+  border-left: 1px solid var(--line);
+  display: flex;
+  flex-direction: column;
+  height: calc(100vh - 65px);
+  position: sticky;
+  top: 65px;
+  transition: width 0.2s ease, min-width 0.2s ease;
+  z-index: 10;
+}
+.agent-dock.collapsed {
+  width: 48px;
+  min-width: 48px;
+}
+.agent-dock.collapsed .dock-body,
+.agent-dock.collapsed .dock-title-block strong {
+  display: none;
+}
+.dock-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.75rem 0.9rem;
+  border-bottom: 1px solid var(--line);
+}
+.dock-title-block {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.9rem;
+}
+.dock-body {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  overflow: hidden;
+}
+.dock-tabs {
+  display: flex;
+  border-bottom: 1px solid var(--line);
+}
+.dock-tab-btn {
+  flex: 1;
+  padding: 0.6rem;
+  border: none;
+  background: transparent;
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+}
+.dock-tab-btn.active {
+  color: var(--brand);
+  border-bottom-color: var(--brand);
+  background: var(--surface-soft, rgba(120, 152, 255, 0.05));
+}
+.dock-panel {
+  padding: 0.85rem;
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  overflow-y: auto;
+}
+.dock-form {
+  display: flex;
+  flex-direction: column;
+  gap: 0.8rem;
+}
+.dock-chat-history {
+  flex: 1;
+  min-height: 200px;
+  max-height: 50vh;
+  overflow-y: auto;
+  margin-bottom: 0.8rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+.dock-chat-form {
+  display: flex;
+  gap: 0.4rem;
+}
+
+/* Document Studio Workstation Layout */
+.studio-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 340px;
+  gap: 1.25rem;
+  align-items: start;
+}
+.studio-editor-card {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+.studio-alix-sidecar {
+  display: flex;
+  flex-direction: column;
+  gap: 0.8rem;
+  min-height: 500px;
+}
+.studio-chat-log {
+  flex: 1;
+  max-height: 420px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  padding-right: 0.2rem;
+}
+.studio-chat-form {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}

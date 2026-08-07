@@ -40,14 +40,17 @@
       <button class="nav-button" type="button" data-view-target="agenda" aria-controls="view-agenda">
         <span aria-hidden="true">☷</span> Agenda
       </button>
+      <button class="nav-button" type="button" data-view-target="doc-studio" aria-controls="view-doc-studio">
+        <span aria-hidden="true">✍</span> Document Studio
+      </button>
       <button class="nav-button" type="button" data-view-target="requests" aria-controls="view-requests">
         <span aria-hidden="true">📋</span> Requests
       </button>
+      <button class="nav-button" type="button" data-view-target="documents" aria-controls="view-documents">
+        <span aria-hidden="true">📄</span> Case Files
+      </button>
       <button class="nav-button" type="button" data-view-target="matters" aria-controls="view-matters">
         <span aria-hidden="true">▣</span> Matters
-      </button>
-      <button class="nav-button" type="button" data-view-target="documents" aria-controls="view-documents">
-        <span aria-hidden="true">📄</span> Documents
       </button>
       <button class="nav-button" type="button" data-view-target="create" aria-controls="view-create">
         <span aria-hidden="true">＋</span> Create
@@ -409,7 +412,99 @@
           </form>
         </div>
       </section>
+
+      <section id="view-doc-studio" class="view" aria-labelledby="doc-studio-title">
+        <div class="page-heading">
+          <div>
+            <p class="eyebrow">Authoring & Editing Workstation</p>
+            <h1 id="doc-studio-title">Document Studio</h1>
+            <p>Work directly with Alix to author documents, complete templates, and refine drafts.</p>
+          </div>
+          <div class="header-actions">
+            <select id="studio-template-select" class="select-input">
+              <option value="">Choose a starter template…</option>
+            </select>
+          </div>
+        </div>
+        <div class="studio-layout">
+          <div class="studio-editor-card panel">
+            <label>Document title
+              <input id="studio-doc-title" placeholder="e.g. Master Services Agreement Draft" required>
+            </label>
+            <label>Document content
+              <textarea id="studio-doc-content" rows="18" placeholder="Type document text or load a template..."></textarea>
+            </label>
+            <div class="studio-actions">
+              <button id="studio-save-button" class="primary-button" type="button">Save Draft Document</button>
+            </div>
+          </div>
+          <aside class="studio-alix-sidecar panel">
+            <div class="sidecar-header">
+              <span class="status-dot online"></span>
+              <h3>Alix (Document Specialist)</h3>
+            </div>
+            <div id="studio-alix-messages" class="studio-chat-log">
+              <p class="form-help">Alix is ready to assist with drafting, template variables, or review notes.</p>
+            </div>
+            <form id="studio-alix-form" class="studio-chat-form">
+              <textarea id="studio-alix-input" rows="3" placeholder="Ask Alix to refine section, fill variables, or expand text..." required></textarea>
+              <button class="primary-button full-width" type="submit">Send to Alix</button>
+            </form>
+          </aside>
+        </div>
+      </section>
     </main>
+
+    <aside id="persistent-agent-dock" class="agent-dock" aria-label="Persistent Agent Action Dock">
+      <header class="dock-header">
+        <div class="dock-title-block">
+          <span class="status-dot online"></span>
+          <strong>Agent Office Dock</strong>
+        </div>
+        <button id="dock-toggle-btn" class="icon-button mini" type="button" title="Toggle Dock Expand/Collapse" aria-expanded="true">⇥</button>
+      </header>
+      <div id="dock-body-container" class="dock-body">
+        <nav class="dock-tabs">
+          <button id="dock-tab-task" class="dock-tab-btn active" type="button">Post Task</button>
+          <button id="dock-tab-finn" class="dock-tab-btn" type="button">Finn (Comms)</button>
+        </nav>
+        <div id="dock-panel-task" class="dock-panel">
+          <form id="dock-task-form" class="dock-form">
+            <label>Task description
+              <textarea id="dock-task-desc" rows="3" placeholder="What should the office do?" required></textarea>
+            </label>
+            <div class="form-grid two-columns">
+              <label>Assigned agent
+                <select id="dock-task-agent">
+                  <option value="Alix">Alix (Operations)</option>
+                  <option value="Finn">Finn (Comms)</option>
+                  <option value="Kai">Kai (Records)</option>
+                  <option value="Marley">Marley (Case Spec)</option>
+                  <option value="Zoe">Zoe (Quality)</option>
+                </select>
+              </label>
+              <label>Priority
+                <select id="dock-task-priority">
+                  <option value="HIGH">High</option>
+                  <option value="NORMAL" selected>Normal</option>
+                  <option value="ROUTINE">Routine</option>
+                </select>
+              </label>
+            </div>
+            <button class="primary-button full-width" type="submit">Post Task to Office</button>
+          </form>
+        </div>
+        <div id="dock-panel-finn" class="dock-panel" hidden>
+          <div id="dock-finn-messages" class="dock-chat-history">
+            <p class="form-help">Finn is online. Ask about office status, client messages, or requests.</p>
+          </div>
+          <form id="dock-finn-form" class="dock-chat-form">
+            <input id="dock-finn-input" placeholder="Message Finn..." required autocomplete="off">
+            <button class="primary-button mini" type="submit">Send</button>
+          </form>
+        </div>
+      </div>
+    </aside>
   </div>
 
   <dialog id="document-review-dialog" class="document-review-dialog" aria-labelledby="document-review-title">

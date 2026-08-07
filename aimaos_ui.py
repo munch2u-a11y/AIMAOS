@@ -789,7 +789,7 @@ class AIMAOSUIHandler(SimpleHTTPRequestHandler):
             data = self._read_json()
             work_routes = {
                 "/api/chat", "/api/upload", "/api/generate_doc",
-                "/api/quick_action", "/api/work_item", "/api/agenda/respond",
+                "/api/quick_action", "/api/quick_task", "/api/work_item", "/api/agenda/respond",
                 "/api/agent/publish-widget",
                 "/api/document_review_note", "/api/document_review_submit",
                 "/api/document_rollback",
@@ -979,8 +979,8 @@ class AIMAOSUIHandler(SimpleHTTPRequestHandler):
                     report = run_daily_advancement_review(force=True)
                     return self._send_json({
                         "status": "success",
-                        "message": "Priorities and blockers were refreshed.",
-                        "review": report,
+                        "summary": report.get("summary", ""),
+                        "counts": report.get("counts", {}),
                     })
                 actions = {
                     "audit_all": ("Comprehensive Office & Matter Security Audit", "Finn", "HIGH"),
@@ -992,6 +992,30 @@ class AIMAOSUIHandler(SimpleHTTPRequestHandler):
                     raise SecurityValidationError("Unknown quick action.")
                 task_id = OfficeBoard().post_task(action[0], "User", action[1], action[2])
                 return self._send_json({"status": "success", "task_id": task_id})
+
+            if path == "/api/quick_task":
+                description = str(data.get("description", "")).strip()
+                if not description or len(description) > 4_000:
+                    raise SecurityValidationError("Task description must be between 1 and 4,000 characters.")
+                assigned_agent = str(data.get("assigned_agent", "Alix")).strip()
+                priority = str(data.get("priority", "NORMAL")).upper()
+                if priority not in {"HIGH", "NORMAL", "ROUTINE"}:
+                    priority = "NORMAL"
+
+                board = OfficeBoard()
+                task_id = board.post_task(
+                    description,
+                    "User",
+                    assigned_agent,
+                    priority,
+                    details={"source": "persistent_agent_dock"},
+                )
+                board.log_activity(f"[Agent Dock] User posted task for {assigned_agent}: '{description[:60]}...'")
+                return self._send_json({
+                    "status": "success",
+                    "task_id": task_id,
+                    "message": f"Task successfully posted for {assigned_agent}.",
+                })
 
             if path == "/api/work_item":
                 task_id = str(data.get("task_id", "")).strip()
