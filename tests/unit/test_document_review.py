@@ -139,4 +139,4 @@ def test_open_document_notes_queue_one_safe_agent_task(tmp_path):
     assert details["file_path"] == "draft.docx"
     assert details["client_slug"] == "example"
     assert "signed order" not in repr(details)
-    assert "preserve the source document" in details["next_action"]
+    assert "apply every open note directly to the document" in details["next_action"]
