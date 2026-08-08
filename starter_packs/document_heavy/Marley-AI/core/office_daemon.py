@@ -65,10 +65,14 @@ PREFERRED_ORDER = ["Marley", "Alix", "Kai", "Quinn", "Zoe", "Finn", "Rae"]
 def discover_roster():
     """Every materialized agent workspace, so a different starter pack or a
     newly cloned specialist is hired automatically on the next daemon start."""
-    found = sorted(entry[:-3] for entry in os.listdir(AIMAOS_ROOT)
-                   if entry.endswith("-AI")
-                   and os.path.exists(os.path.join(AIMAOS_ROOT, entry, "core", "agent.py")))
-    return sorted(found, key=lambda n: (PREFERRED_ORDER.index(n)
+    found = set()
+    for root_dir in [AIMAOS_ROOT, os.path.join(AIMAOS_ROOT, "starter_packs", "document_heavy")]:
+        if os.path.isdir(root_dir):
+            for entry in os.listdir(root_dir):
+                if entry.endswith("-AI") and os.path.exists(os.path.join(root_dir, entry, "core", "agent.py")):
+                    found.add(entry[:-3])
+    roster = sorted(found)
+    return sorted(roster, key=lambda n: (PREFERRED_ORDER.index(n)
                                         if n in PREFERRED_ORDER else len(PREFERRED_ORDER), n))
 
 
@@ -77,6 +81,8 @@ AGENT_CLASSES = {}
 
 def load_agent(name):
     path = os.path.join(AIMAOS_ROOT, f"{name}-AI", "core", "agent.py")
+    if not os.path.isfile(path):
+        path = os.path.join(AIMAOS_ROOT, "starter_packs", "document_heavy", f"{name}-AI", "core", "agent.py")
     spec = importlib.util.spec_from_file_location(f"aimaos_daemon_{name.lower()}", path)
     mod = importlib.util.module_from_spec(spec)
     sys.modules[spec.name] = mod
