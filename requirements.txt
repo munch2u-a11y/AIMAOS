@@ -6,4 +6,4 @@ ollama==0.6.2
 requests==2.34.2
 docxtpl==0.20.2
 python-docx==1.2.0
-pypdf==6.14.2
+pypdf==6.15.0
