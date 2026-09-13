@@ -8,7 +8,7 @@ The goal is not to make a small model behave like an infallible employee. AIMAOS
 
 ## Public-beta status
 
-AIMAOS is a single-operator Linux beta, not a hosted service or a professional-judgment replacement.
+AIMAOS is a single-operator Windows and Linux beta, not a hosted service or a professional-judgment replacement.
 
 - The default configuration uses locally hosted Ollama models and does not require a paid AI API.
 - The core application is local-first, but optional web search, calendar, remote speech, email, or vector-store integrations can use a network if an operator explicitly enables and configures them.
@@ -243,13 +243,23 @@ The zero-dependency `DummyVectorStore` is deterministic hash-based retrieval, no
 
 ### Requirements
 
-- Linux with Python 3.11–3.13
+- Windows 10/11 or Linux with Python 3.11–3.13
 - a local Ollama service for the default configuration
 - enough RAM/storage for the selected models
 - LibreOffice for DOCX-to-PDF conversion and some document validation workflows
 - optional system packages for OCR, audio, or image integrations
 
 ### 1. Install dependencies
+
+Windows (PowerShell or Command Prompt):
+
+```powershell
+git clone https://github.com/munch2u-a11y/AIMAOS.git
+cd AIMAOS
+.\install.cmd
+```
+
+Linux:
 
 ```bash
 git clone https://github.com/munch2u-a11y/AIMAOS.git
@@ -270,31 +280,36 @@ Review `aimaos_config.yaml` before use. Model availability and tool-calling supp
 
 ### 3. Materialize the starter office
 
-```bash
-.venv/bin/python3 setup.py --pack document_heavy
-.venv/bin/python3 doctor.py
+```text
+Windows: .\.venv\Scripts\python.exe setup.py --pack document_heavy
+         .\.venv\Scripts\python.exe doctor.py
+Linux:   .venv/bin/python3 setup.py --pack document_heavy
+         .venv/bin/python3 doctor.py
 ```
 
 `setup.py` creates live root agent workspaces from `starter_packs/document_heavy/`. It is non-destructive by default; `--force` overwrites source-managed files and should be used only with a backup and a clear migration plan.
 
 ### 4. Launch the workstation
 
-```bash
-./Launch\ AIMAOS.sh
-# or
-.venv/bin/python3 aimaos_ui.py
+```text
+Windows: & ".\Launch AIMAOS.cmd"
+         .\.venv\Scripts\python.exe aimaos_ui.py
+Linux:   ./Launch\ AIMAOS.sh
+         .venv/bin/python3 aimaos_ui.py
 ```
 
 Open `http://127.0.0.1:8080` on the same machine. The UI manages the office daemon by default. To run a bounded daemon-only smoke test:
 
-```bash
-.venv/bin/python3 run_office.py --max-cycles 5
+```text
+Windows: .\.venv\Scripts\python.exe run_office.py --max-cycles 5
+Linux:   .venv/bin/python3 run_office.py --max-cycles 5
 ```
 
 ### 5. Optional synthetic intake test
 
-```bash
-.venv/bin/python3 shared_tools/ingest_ssd_drive.py /path/to/synthetic/intake
+```text
+Windows: .\.venv\Scripts\python.exe shared_tools\ingest_ssd_drive.py C:\path\to\synthetic\intake
+Linux:   .venv/bin/python3 shared_tools/ingest_ssd_drive.py /path/to/synthetic/intake
 ```
 
 Do not begin with real client data. Follow the synthetic smoke test in [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md), review the Agenda and generated artifact, then remove the synthetic matter according to your retention process.
@@ -322,11 +337,14 @@ AIMAOS/
 
 The isolated release gate does not require a live model or real office data:
 
-```bash
-.venv/bin/python3 -m pip install -r requirements-dev.lock
-.venv/bin/python3 -m pytest -q
-node --check ui/static/app.js
-.venv/bin/python3 doctor.py
+```text
+Windows: .\.venv\Scripts\python.exe -m pip install -r requirements-dev.lock
+         .\.venv\Scripts\python.exe -m pytest -q
+         .\.venv\Scripts\python.exe doctor.py
+Linux:   .venv/bin/python3 -m pip install -r requirements-dev.lock
+         .venv/bin/python3 -m pytest -q
+         .venv/bin/python3 doctor.py
+Both:    node --check ui/static/app.js
 ```
 
 Pytest collects `tests/unit/`. Manual benchmarks can call real models and mutate live runtime workspaces; read [tests/README.md](tests/README.md) before running them.

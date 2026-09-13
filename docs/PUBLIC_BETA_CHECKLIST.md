@@ -11,7 +11,7 @@
 
 ## Product and UX
 
-- [ ] First-run instructions were tested on a clean Linux account.
+- [ ] First-run instructions were tested on clean non-administrator Windows and unprivileged Linux accounts.
 - [ ] Home, Agenda, Matters, Create, Assistant, Settings, and pause/resume are understandable without developer knowledge.
 - [ ] Empty, loading, queued, running, paused, completed, interrupted, and failed states are clear.
 - [ ] Clickable review tasks open the exact safe file or fall back to the correct matter.
@@ -41,8 +41,8 @@
 
 ## Reliability and deployment
 
-- [ ] `.venv/bin/python3 doctor.py` has no failures.
-- [ ] `.venv/bin/python3 -m pytest -q` passes, including loopback HTTP tests.
+- [ ] The native virtual-environment Python runs `doctor.py` with no failures on Windows and Linux.
+- [ ] The native virtual-environment Python runs `pytest -q` successfully on Windows and Linux, including loopback HTTP tests.
 - [ ] JavaScript syntax and Python compilation checks pass.
 - [ ] Effective model/backend tags and tool-calling support are recorded from the running host.
 - [ ] Clean start, pause after current turn, resume, stopped-daemon start, restart, and duplicate-daemon prevention were tested.

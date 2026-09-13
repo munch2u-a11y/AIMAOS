@@ -1,0 +1,25 @@
+{
+  "name": "aimaos-case-specialist",
+  "version": "0.1.0",
+  "description": "Maintain a safe, matter-local working overview and internal follow-ups for AIMAOS cases.",
+  "author": {
+    "name": "AIMAOS Contributors",
+    "url": "https://github.com/munch2u-a11y/AIMAOS"
+  },
+  "homepage": "https://github.com/munch2u-a11y/AIMAOS",
+  "repository": "https://github.com/munch2u-a11y/AIMAOS",
+  "license": "Apache-2.0",
+  "keywords": ["aimaos", "case-management", "local-first"],
+  "skills": "./skills/",
+  "interface": {
+    "displayName": "AIMAOS Case Specialist",
+    "shortDescription": "Refresh matter-local overviews safely.",
+    "longDescription": "Initializes, refreshes, audits, and reports the status of an AIMAOS matter specialist without sending external communications or creating authoritative deadlines.",
+    "developerName": "AIMAOS Contributors",
+    "category": "Productivity",
+    "capabilities": ["Read", "Write"],
+    "defaultPrompt": [
+      "Use $manage-case-specialist to report this case's status and safely refresh its working overview."
+    ]
+  }
+}

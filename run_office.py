@@ -2,7 +2,7 @@
 """AIMAOS entrypoint: starts Marley's autonomous office daemon.
 
 Usage:
-    <office root>/Alix-AI/.venv/bin/python3 run_office.py [--max-cycles N] [--poll SEC]
+    python run_office.py [--max-cycles N] [--poll SEC]
 """
 import os
 

@@ -1,0 +1,4 @@
+interface:
+  display_name: "AIMAOS Case Specialist"
+  short_description: "Maintain case overviews and internal follow-ups"
+  default_prompt: "Use $manage-case-specialist to refresh a case overview safely."

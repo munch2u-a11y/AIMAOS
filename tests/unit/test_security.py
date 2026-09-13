@@ -1,3 +1,4 @@
+import os
 from pathlib import Path
 
 import pytest
@@ -27,7 +28,12 @@ def test_resolve_within_blocks_symlink_escape(tmp_path):
     outside = tmp_path / "outside"
     root.mkdir()
     outside.mkdir()
-    (root / "escape").symlink_to(outside, target_is_directory=True)
+    try:
+        (root / "escape").symlink_to(outside, target_is_directory=True)
+    except OSError as exc:
+        if os.name == "nt" and getattr(exc, "winerror", None) == 1314:
+            pytest.skip(f"This Windows account cannot create test symlinks: {exc}")
+        raise
     with pytest.raises(SecurityValidationError):
         resolve_within(str(root), "escape", "record.txt")
 

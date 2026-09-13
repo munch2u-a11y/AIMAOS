@@ -7,6 +7,7 @@ from docxtpl import DocxTemplate
 from docx import Document
 from docx.oxml.ns import qn
 from docx.oxml import OxmlElement
+from core.platform_support import find_libreoffice
 
 logger = logging.getLogger(__name__)
 
@@ -288,8 +289,12 @@ class DocumentEngine:
         base_name = os.path.splitext(os.path.basename(docx_path))[0]
         expected_pdf = os.path.join(output_dir, f"{base_name}.pdf")
 
+        libreoffice = find_libreoffice()
+        if not libreoffice:
+            logger.warning("LibreOffice PDF conversion is unavailable; preserving DOCX output")
+            return None
         try:
-            cmd = ["soffice", "--headless", "--convert-to", "pdf", docx_path, "--outdir", output_dir]
+            cmd = [libreoffice, "--headless", "--convert-to", "pdf", docx_path, "--outdir", output_dir]
             subprocess.run(cmd, check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
             if os.path.exists(expected_pdf):
                 return expected_pdf

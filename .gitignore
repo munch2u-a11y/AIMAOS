@@ -120,3 +120,6 @@ Thumbs.db
 # Local coding-agent guidance and workspace state
 /AGENTS.md
 /.agents/
+!/.agents/
+!/.agents/plugins/
+!/.agents/plugins/marketplace.json

@@ -130,6 +130,20 @@ def _render_markdown(state):
     else:
         lines.append("*None recorded.*")
 
+    lines += ["", "## Candidate Dates — Staff Verification Required", ""]
+    candidate_dates = state.get("candidate_dates") or []
+    if candidate_dates:
+        for item in candidate_dates[:20]:
+            if not isinstance(item, dict):
+                continue
+            source = f" — source: {item.get('source_path')}" if item.get("source_path") else ""
+            lines.append(
+                f"- {item.get('date') or 'Unverified date'} — "
+                f"{item.get('description') or 'Candidate date'}{source}"
+            )
+    else:
+        lines.append("*None identified. Confirm dates independently.*")
+
     lines += ["", "## Activity Log", ""]
     log = state.get("activity_log") or []
     if log:
@@ -180,6 +194,7 @@ def create_case_file(client_name, matter_type, category=None, case_number=None):
         "summary": "",
         "next_steps": [],
         "required_documents": {},
+        "candidate_dates": [],
         "activity_log": [],
         "last_reviewed_at": None,
         "preferred_channel": None,
@@ -201,7 +216,7 @@ def log_entry(client_name, entry):
 
 
 def update_status(client_name, summary=None, next_steps=None, required_documents=None,
-                  preferred_channel=None, state_label=None):
+                  candidate_dates=None, preferred_channel=None, state_label=None):
     state = _load_state(client_name)
     if state is None:
         return None
@@ -213,6 +228,8 @@ def update_status(client_name, summary=None, next_steps=None, required_documents
         docs = state.setdefault("required_documents", {})
         for name, status in required_documents.items():
             docs.setdefault(name, {})["status"] = status
+    if candidate_dates is not None:
+        state["candidate_dates"] = list(candidate_dates)[:20]
     if preferred_channel is not None:
         state["preferred_channel"] = preferred_channel
     if state_label is not None:
@@ -309,6 +326,17 @@ def move_client_dir(client_name, new_category):
                      f"({old_path} -> {new_path}).",
         })
         _save_state(client_name, state)
+    try:
+        from core.case_specialist_service import notify_case_changed
+        notify_case_changed(
+            new_path,
+            client_name=client_name,
+            reason=f"Case directory moved to category: {new_category}",
+        )
+    except Exception:
+        # The move is already durable. A review failure remains visible in
+        # .case_agent/change_state.json and must not roll the move back.
+        pass
     return new_path
 
 

@@ -1,7 +1,6 @@
 """Crash-safe, matter-local document annotations for the workstation UI."""
 from __future__ import annotations
 
-import fcntl
 import hashlib
 import json
 import os
@@ -9,6 +8,7 @@ import secrets
 from datetime import datetime
 
 from core.atomic_io import atomic_write_json, atomic_write_text
+from core.file_lock import lock_file, unlock_file
 from core.security import resolve_within
 
 
@@ -87,7 +87,7 @@ class DocumentReviewStore:
 
     def _mutate(self, callback):
         with open(self.lock_path, "a+", encoding="utf-8") as lock_handle:
-            fcntl.flock(lock_handle, fcntl.LOCK_EX)
+            lock_file(lock_handle)
             try:
                 payload = self._load_unlocked()
                 result = callback(payload)
@@ -96,7 +96,7 @@ class DocumentReviewStore:
                 atomic_write_text(self.summary_path, self._render_summary(payload))
                 return result
             finally:
-                fcntl.flock(lock_handle, fcntl.LOCK_UN)
+                unlock_file(lock_handle)
 
     def list_notes(self, rel_path: str | None = None, *, include_resolved: bool = True) -> list[dict]:
         payload = self._load_unlocked()

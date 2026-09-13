@@ -8,7 +8,7 @@ failed work, and rotates background identity reflections so each agent's
 beliefs keep evolving from its actual experiences.
 
 Run it:
-    <office root>/Alix-AI/.venv/bin/python3 <office root>/run_office.py
+    python <office root>/run_office.py
     (flags: --max-cycles N for bounded runs, --poll SECONDS to override cadence)
 
 One turn executes at a time — Marley's charter is protecting local CPU/GPU

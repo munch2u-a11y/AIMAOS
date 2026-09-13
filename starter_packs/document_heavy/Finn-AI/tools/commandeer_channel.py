@@ -10,6 +10,7 @@ import sys
 import json
 import importlib.util
 from datetime import datetime
+from core.platform_support import user_config_path
 
 sys.path.insert(0, AIMAOS_ROOT)
 sys.path.insert(0, os.path.join(AIMAOS_ROOT, "Alix-AI"))
@@ -23,8 +24,8 @@ _client_file_spec = importlib.util.spec_from_file_location(
 client_file = importlib.util.module_from_spec(_client_file_spec)
 _client_file_spec.loader.exec_module(client_file)
 
-CREDENTIALS_ENV_PATH = os.path.expanduser("~/.config/aimaos/credentials.env")
-TELEGRAM_ENV_PATH = os.path.expanduser("~/.config/aimaos/telegram.env")
+CREDENTIALS_ENV_PATH = user_config_path("credentials.env")
+TELEGRAM_ENV_PATH = user_config_path("telegram.env")
 
 TOOL_DEFINITION = {
     "name": "commandeer_channel",

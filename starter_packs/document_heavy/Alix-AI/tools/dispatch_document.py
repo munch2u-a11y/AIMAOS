@@ -90,10 +90,27 @@ def execute(file_path, client_name, recipient_email=None, notes=None):
     # activity log shouldn't depend on the agent remembering a second call.
     client_file.mark_document_dispatched(client_name, os.path.basename(dest_file), dest_file)
 
+    # Refresh once after the archive write and record update are both durable.
+    try:
+        from core.case_specialist_service import notify_case_changed
+        notify_case_changed(
+            client_root,
+            client_name=client_name,
+            reason=f"Generated document archived: {os.path.basename(dest_file)}",
+        )
+    except Exception as exc:
+        # Archival succeeded; report review failure honestly without pretending
+        # the document dispatch itself failed.
+        review_warning = f"Case overview refresh pending: {exc}"
+    else:
+        review_warning = None
+
     response_lines = [
         f"Success: Document archived for client '{client_name}'.",
         f"- Archived Path: {dest_file}"
     ]
+    if review_warning:
+        response_lines.append(f"- Review Notice: {review_warning}")
 
     # Handle Email dispatch if recipient provided
     if recipient_email:

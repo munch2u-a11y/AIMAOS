@@ -77,5 +77,7 @@ def execute(client_name, file_path, rename_to=None):
     shutil.copy2(file_path, dest_path)
     client_file.mark_document_dispatched(client_name, final_name, dest_path)
 
-    report, _update = case_review.run_review_and_apply(client_name)
+    report, _update = case_review.run_review_and_apply(
+        client_name, force=False, reason=f"Incoming file: {final_name}"
+    )
     return f"Filed {final_name} for {client_name} at {dest_path}.\n" + "\n".join(report)

@@ -26,7 +26,7 @@ It should not be marketed as an infallible autonomous employee, complete office-
 ## P0 — before inviting public users
 
 1. Rewrite and rescan public Git history so no generated runtime/private artifacts or personal metadata remain reachable.
-2. Test install/setup/start/pause/resume/restart on a clean non-developer Linux account.
+2. Test install/setup/start/pause/resume/restart on clean non-administrator Windows and unprivileged Linux accounts.
 3. Complete authoritative provenance and revision review for every bundled form.
 4. Exercise backup, restore, rollback, interrupted-job recovery, retention, and deletion using synthetic data.
 5. Run path traversal, cross-matter access, prompt injection, malformed document, XSS, oversized upload, and reverse-proxy tests.

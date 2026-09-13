@@ -7,7 +7,6 @@ def _find_aimaos_root():
     return p
 AIMAOS_ROOT = os.environ.get("AIMAOS_ROOT") or _find_aimaos_root()
 import sys
-import shutil
 import platform
 import subprocess
 import yaml
@@ -19,6 +18,7 @@ from core.security import (
     sanitize_output_basename,
     validate_slug,
 )
+from core.platform_support import find_libreoffice
 
 # Optional imports handled gracefully
 try:
@@ -79,7 +79,7 @@ def convert_docx_to_pdf(docx_path, output_dir):
             pass
 
     # 2. Try LibreOffice / soffice
-    libreoffice_bin = shutil.which("libreoffice") or shutil.which("soffice")
+    libreoffice_bin = find_libreoffice()
     if libreoffice_bin:
         try:
             subprocess.run([

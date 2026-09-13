@@ -2,9 +2,22 @@
 
 ## 1. Prepare the host
 
-Use a dedicated, unprivileged Linux account on a supported Python 3.11–3.13 system. Enable full-disk encryption, OS security updates, a host firewall, and encrypted backups. Install Ollama separately and keep its API off untrusted networks.
+Use a dedicated, non-administrator Windows account or unprivileged Linux account on a supported Python 3.11–3.13 system. Enable full-disk encryption, OS security updates, a host firewall, and encrypted backups. Install Ollama separately and keep its API off untrusted networks.
 
 ## 2. Install
+
+Windows:
+
+```powershell
+.\install.cmd
+ollama pull qwen3.5:4b
+ollama pull qwen3.5:2b
+# Optional prose-only research model:
+ollama pull gemma3:4b
+.\.venv\Scripts\python.exe doctor.py
+```
+
+Linux:
 
 ```bash
 bash install.sh
@@ -19,8 +32,9 @@ Direct dependency intent is recorded in `requirements.txt`; reproducible runtime
 
 For release validation, install the separate development lock before running pytest:
 
-```bash
-.venv/bin/python3 -m pip install -r requirements-dev.lock
+```text
+Windows: .\.venv\Scripts\python.exe -m pip install -r requirements-dev.lock
+Linux:   .venv/bin/python3 -m pip install -r requirements-dev.lock
 ```
 
 ## 3. Review configuration
@@ -39,8 +53,9 @@ Before first use, check `aimaos_config.yaml`:
 
 ## 4. Start and smoke-test
 
-```bash
-.venv/bin/python3 aimaos_ui.py --no-browser
+```text
+Windows: .\.venv\Scripts\python.exe aimaos_ui.py --no-browser
+Linux:   .venv/bin/python3 aimaos_ui.py --no-browser
 ```
 
 From the same machine, open `http://127.0.0.1:8080`. Confirm that:
@@ -64,6 +79,8 @@ Remote access is for administrators who can operate a TLS reverse proxy. Keep AI
 export AIMAOS_UI_TOKEN="replace-with-at-least-32-random-bytes"
 .venv/bin/python3 aimaos_ui.py --host 127.0.0.1 --no-browser
 ```
+
+On Windows PowerShell, use `$env:AIMAOS_UI_TOKEN = "replace-with-at-least-32-random-bytes"` and launch with `.\.venv\Scripts\python.exe aimaos_ui.py --host 127.0.0.1 --no-browser`.
 
 Terminate HTTPS and user authentication at a reverse proxy on the same host, then proxy to `127.0.0.1:8080`. Preserve the original `Host` header. Apply rate limits and network access control. Never expose port 8080 publicly or transmit the token over HTTP.
 

@@ -16,6 +16,7 @@ from rich.panel import Panel
 from rich.table import Table
 
 from core.atomic_io import atomic_write_text
+from core.platform_support import find_libreoffice, launch_command, user_config_path
 
 console = Console()
 
@@ -78,7 +79,7 @@ def run_diagnostics():
         "docxtpl (Jinja2 Word Renderer)": import_check("docxtpl"),
         "rich (Terminal UI Engine)": import_check("rich"),
         "pyyaml (Config Parser)": import_check("yaml"),
-        "soffice / LibreOffice (PDF Converter)": shutil.which("soffice") is not None
+        "soffice / LibreOffice (PDF Converter)": find_libreoffice() is not None
     }
 
     table = Table(title="Dependency Diagnostics")
@@ -302,7 +303,7 @@ def configure_email_security(security_mode="READ_ONLY", approved_recipients=None
 
     if email_user:
         email_user = _validated_email(email_user)
-        cred_path = os.path.expanduser("~/.config/aimaos/credentials.env")
+        cred_path = user_config_path("credentials.env")
         os.makedirs(os.path.dirname(cred_path), exist_ok=True)
         lines = []
         if os.path.exists(cred_path):
@@ -374,7 +375,10 @@ def main():
     except ValueError as exc:
         parser.error(str(exc))
     console.print("\n[bold green]SUCCESS: AIMAOS Model-Agnostic Setup Completed![/bold green]")
-    console.print("Run [bold yellow]python3 aimaos_ui.py[/bold yellow] (dashboard) or [bold yellow]python3 run_office.py[/bold yellow] (autonomous daemon).")
+    console.print(
+        f"Run [bold yellow]{launch_command('aimaos_ui.py')}[/bold yellow] (dashboard) or "
+        f"[bold yellow]{launch_command('run_office.py')}[/bold yellow] (autonomous daemon)."
+    )
 
 if __name__ == "__main__":
     main()

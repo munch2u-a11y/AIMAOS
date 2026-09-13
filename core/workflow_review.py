@@ -7,7 +7,6 @@ keeps Marley's private calendar synchronized without creating duplicates.
 """
 from __future__ import annotations
 
-import fcntl
 import hashlib
 import json
 import os
@@ -18,6 +17,7 @@ from core.atomic_io import atomic_write_json
 from core.agent_widgets import validate_widget_schema
 from core.comms.office_board import OfficeBoard
 from core.db.office_sqlite import OfficeSQLite
+from core.file_lock import lock_file, unlock_file
 from core.local_calendar import LocalCalendar
 from core.security import load_security_config, normalize_slug, path_is_sensitive, resolve_within
 
@@ -122,7 +122,7 @@ def run_daily_advancement_review(
     os.makedirs(os.path.dirname(state_path), exist_ok=True)
     lock_path = state_path + ".lock"
     with open(lock_path, "a+", encoding="utf-8") as state_lock:
-        fcntl.flock(state_lock, fcntl.LOCK_EX)
+        lock_file(state_lock)
         try:
             prior_state = _daily_state(state_path)
             if not force and prior_state.get("last_review_date") == today:
@@ -330,7 +330,7 @@ def run_daily_advancement_review(
             atomic_write_json(state_path, state)
             return report
         finally:
-            fcntl.flock(state_lock, fcntl.LOCK_UN)
+            unlock_file(state_lock)
 
 
 def _due_date(value) -> date | None:
