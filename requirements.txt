@@ -2,7 +2,7 @@
 # Direct dependencies are pinned so beta installations do not drift silently.
 PyYAML==6.0.3
 rich==15.0.0
-ollama==0.6.2
+ollama==0.6.3
 requests==2.34.2
 docxtpl==0.20.2
 python-docx==1.2.0
